@@ -18,6 +18,7 @@ import orderRoutes from './routes/orderRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import { checkDbReadiness } from './middleware/dbReadiness.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -105,18 +106,18 @@ app.get('/', (req, res) => {
 // Mount Health Check Routes
 app.use(healthRoutes);
 
-// Mount API v1 Routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/products', productRoutes);
-app.use('/api/v1/categories', categoryRoutes);
-app.use('/api/v1/cart', cartRoutes);
-app.use('/api/v1/wishlist', wishlistRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/orders', orderRoutes);
-app.use('/api/v1/coupons', couponRoutes);
-app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/reviews', reviewRoutes);
+// Mount API v1 Routes (Database-dependent routes protected by checkDbReadiness)
+app.use('/api/v1/auth', checkDbReadiness, authRoutes);
+app.use('/api/v1/admin', checkDbReadiness, adminRoutes);
+app.use('/api/v1/products', checkDbReadiness, productRoutes);
+app.use('/api/v1/categories', checkDbReadiness, categoryRoutes);
+app.use('/api/v1/cart', checkDbReadiness, cartRoutes);
+app.use('/api/v1/wishlist', checkDbReadiness, wishlistRoutes);
+app.use('/api/v1/users', checkDbReadiness, userRoutes);
+app.use('/api/v1/orders', checkDbReadiness, orderRoutes);
+app.use('/api/v1/coupons', checkDbReadiness, couponRoutes);
+app.use('/api/v1/payments', checkDbReadiness, paymentRoutes);
+app.use('/api/v1/reviews', checkDbReadiness, reviewRoutes);
 
 // Base API v1 metadata route
 app.get('/api/v1', (req, res) => {
