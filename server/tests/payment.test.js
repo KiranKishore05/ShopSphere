@@ -1,0 +1,433 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import mongoose from 'mongoose';
+import crypto from 'crypto';
+import app from '../src/app.js';
+import User from '../src/models/User.js';
+import Product from '../src/models/Product.js';
+import Category from '../src/models/Category.js';
+import Cart from '../src/models/Cart.js';
+import Coupon from '../src/models/Coupon.js';
+import Order from '../src/models/Order.js';
+import Payment from '../src/models/Payment.js';
+import InventoryMovement from '../src/models/InventoryMovement.js';
+import config from '../src/config/env.js';
+import { generateToken } from '../src/utils/token.js';
+
+const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+
+describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
+  let customerUser;
+  let customerCookie;
+
+  let otherCustomerUser;
+  let otherCustomerCookie;
+
+  let testCategory;
+  let testProduct;
+  let testCoupon;
+  let pendingOrder;
+
+  beforeAll(async () => {
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    }
+
+    await User.deleteMany({ email: /@test-payment\.com$/ });
+    await Product.deleteMany({ brand: 'Payment Test Atelier' });
+    await Category.deleteMany({ slug: 'payment-test-category' });
+    await Coupon.deleteMany({ code: /^PAY/ });
+    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Payment/ });
+    await Payment.deleteMany({});
+    await InventoryMovement.deleteMany({});
+
+    testCategory = await Category.create({
+      name: 'Payment Category',
+      slug: 'payment-test-category',
+      description: 'Payment category',
+      image: { url: 'https://example.com/category.jpg' }
+    });
+
+    customerUser = await User.create({
+      name: 'Payment Customer',
+      email: 'customer@test-payment.com',
+      passwordHash: await User.hashPassword('Password123!'),
+      role: 'customer'
+    });
+    const token = generateToken({ id: customerUser._id, email: customerUser.email, role: customerUser.role });
+    customerCookie = `token=${token}`;
+
+    otherCustomerUser = await User.create({
+      name: 'Other Payment Customer',
+      email: 'other@test-payment.com',
+      passwordHash: await User.hashPassword('Password123!'),
+      role: 'customer'
+    });
+    const otherToken = generateToken({ id: otherCustomerUser._id, email: otherCustomerUser.email, role: otherCustomerUser.role });
+    otherCustomerCookie = `token=${otherToken}`;
+
+    await Cart.deleteMany({ userId: { $in: [customerUser._id, otherCustomerUser._id] } });
+
+    testProduct = await Product.create({
+      name: 'Sartorial Wool Trousers',
+      slug: 'sartorial-wool-trousers',
+      description: 'Handcrafted wool trousers.',
+      categoryId: testCategory._id,
+      brand: 'Payment Test Atelier',
+      gender: 'men',
+      images: [{ url: 'https://example.com/trousers.jpg', isPrimary: true }],
+      variants: [
+        {
+          sku: 'SWT-CHR-32',
+          size: '32',
+          color: { name: 'Charcoal', hexCode: '#36454F' },
+          price: 7500,
+          stockQuantity: 10,
+          isActive: true
+        }
+      ]
+    });
+
+    testCoupon = await Coupon.create({
+      code: 'PAY10',
+      description: '10% off',
+      discountType: 'percentage',
+      discountValue: 10,
+      minOrderAmount: 2000,
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      isActive: true,
+      usedCount: 0
+    });
+
+    // Populate user cart
+    await Cart.create({
+      userId: customerUser._id,
+      items: [{
+        productId: testProduct._id,
+        variantSku: 'SWT-CHR-32',
+        quantity: 1,
+        addedAt: new Date()
+      }]
+    });
+
+    // Seed pending order
+    pendingOrder = await Order.create({
+      orderNumber: 'SPH-PAY-TEST-001',
+      userId: customerUser._id,
+      items: [{
+        productId: testProduct._id,
+        variantSku: 'SWT-CHR-32',
+        name: 'Sartorial Wool Trousers',
+        size: '32',
+        color: { name: 'Charcoal', hexCode: '#36454F' },
+        image: 'https://example.com/trousers.jpg',
+        unitPrice: 7500,
+        quantity: 1,
+        lineTotal: 7500
+      }],
+      shippingAddressSnapshot: {
+        fullName: 'Payment Customer',
+        phone: '+91 9876543210',
+        streetAddress: '77 Heritage Boulevard',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        postalCode: '560001',
+        country: 'India'
+      },
+      subtotal: 7500,
+      discount: 750,
+      shippingFee: 0,
+      tax: 0,
+      total: 6750,
+      couponCode: 'PAY10',
+      couponId: testCoupon._id,
+      paymentMethod: 'razorpay',
+      paymentStatus: 'pending',
+      orderStatus: 'pending_payment'
+    });
+  });
+
+  afterAll(async () => {
+    await User.deleteMany({ email: /@test-payment\.com$/ });
+    await Product.deleteMany({ brand: 'Payment Test Atelier' });
+    await Category.deleteMany({ slug: 'payment-test-category' });
+    await Cart.deleteMany({ userId: { $in: [customerUser._id, otherCustomerUser._id] } });
+    await Coupon.deleteMany({ code: /^PAY/ });
+    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Payment/ });
+    await Payment.deleteMany({});
+    await InventoryMovement.deleteMany({});
+  });
+
+  describe('POST /api/v1/payments/razorpay/create-order', () => {
+    it('should create Razorpay order with server-calculated amount in paise', async () => {
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/create-order')
+        .set('Cookie', customerCookie)
+        .send({ orderId: pendingOrder._id.toString() });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.razorpayOrderId).toBeTruthy();
+      expect(res.body.data.amount).toBe(675000); // ₹6,750 * 100 paise
+      expect(res.body.data.currency).toBe('INR');
+      expect(res.body.data.orderNumber).toBe(pendingOrder.orderNumber);
+
+      // Verify payment document created in database
+      const paymentDoc = await Payment.findOne({ orderId: pendingOrder._id });
+      expect(paymentDoc).toBeTruthy();
+      expect(paymentDoc.razorpayOrderId).toBe(res.body.data.razorpayOrderId);
+      expect(paymentDoc.paymentStatus).toBe('pending');
+    });
+
+    it('should reject order creation if user does not own the order', async () => {
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/create-order')
+        .set('Cookie', otherCustomerCookie)
+        .send({ orderId: pendingOrder._id.toString() });
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/v1/payments/razorpay/verify', () => {
+    let razorpayOrderId;
+    const razorpayPaymentId = 'pay_test_987654321';
+
+    beforeAll(async () => {
+      const paymentDoc = await Payment.findOne({ orderId: pendingOrder._id });
+      razorpayOrderId = paymentDoc.razorpayOrderId;
+    });
+
+    it('should reject invalid payment signatures with 400', async () => {
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', customerCookie)
+        .send({
+          orderId: pendingOrder._id.toString(),
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature: 'invalid_forged_signature_hex'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_PAYMENT_SIGNATURE');
+
+      // Verify payment doc was marked failed
+      const paymentDoc = await Payment.findOne({ razorpayOrderId });
+      expect(paymentDoc.paymentStatus).toBe('failed');
+    });
+
+    it('should successfully verify payment with valid HMAC SHA-256 signature', async () => {
+      // Calculate valid signature using configured test secret
+      const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
+      const validSignature = crypto
+        .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+        .update(payload)
+        .digest('hex');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', customerCookie)
+        .send({
+          orderId: pendingOrder._id.toString(),
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature: validSignature
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.order.paymentStatus).toBe('paid');
+      expect(res.body.data.order.orderStatus).toBe('confirmed');
+
+      // Verify stock was deducted (10 - 1 = 9)
+      const updatedProduct = await Product.findById(testProduct._id);
+      const variant = updatedProduct.variants.find(v => v.sku === 'SWT-CHR-32');
+      expect(variant.stockQuantity).toBe(9);
+
+      // Verify coupon usage incremented
+      const updatedCoupon = await Coupon.findById(testCoupon._id);
+      expect(updatedCoupon.usedCount).toBe(1);
+
+      // Verify customer cart was cleared
+      const userCart = await Cart.findOne({ userId: customerUser._id });
+      expect(userCart.items).toHaveLength(0);
+    });
+
+    it('should be idempotent on duplicate verification', async () => {
+      const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
+      const validSignature = crypto
+        .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+        .update(payload)
+        .digest('hex');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', customerCookie)
+        .send({
+          orderId: pendingOrder._id.toString(),
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature: validSignature
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.message).toMatch(/already verified/i);
+
+      // Stock should still be 9 (no double deduction)
+      const updatedProduct = await Product.findById(testProduct._id);
+      const variant = updatedProduct.variants.find(v => v.sku === 'SWT-CHR-32');
+      expect(variant.stockQuantity).toBe(9);
+    });
+  });
+
+  describe('POST /api/v1/payments/razorpay/webhook', () => {
+    let webhookOrder;
+    let webhookRzpOrderId;
+
+    beforeAll(async () => {
+      webhookRzpOrderId = `order_test_webhook_${Date.now()}`;
+
+      webhookOrder = await Order.create({
+        orderNumber: `SPH-WEBHOOK-${Date.now()}`,
+        userId: customerUser._id,
+        items: [{
+          productId: testProduct._id,
+          variantSku: 'SWT-CHR-32',
+          name: 'Sartorial Wool Trousers',
+          size: '32',
+          color: { name: 'Charcoal', hexCode: '#36454F' },
+          image: 'https://example.com/trousers.jpg',
+          unitPrice: 7500,
+          quantity: 1,
+          lineTotal: 7500
+        }],
+        shippingAddressSnapshot: {
+          fullName: 'Webhook Customer',
+          phone: '+91 9876543210',
+          streetAddress: '99 Fashion Way',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          postalCode: '400001',
+          country: 'India'
+        },
+        subtotal: 7500,
+        discount: 0,
+        shippingFee: 0,
+        tax: 0,
+        total: 7500,
+        paymentMethod: 'razorpay',
+        paymentStatus: 'pending',
+        orderStatus: 'pending_payment'
+      });
+
+      await Payment.create({
+        orderId: webhookOrder._id,
+        razorpayOrderId: webhookRzpOrderId,
+        amount: 7500,
+        currency: 'INR',
+        paymentStatus: 'pending'
+      });
+    });
+
+    it('should reject webhook request if x-razorpay-signature header is missing', async () => {
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/webhook')
+        .send({ event: 'payment.captured' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject webhook request with invalid signature', async () => {
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/webhook')
+        .set('x-razorpay-signature', 'forged_webhook_signature')
+        .send({ event: 'payment.captured' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should process payment.captured event with valid signature and confirm order', async () => {
+      const eventPayload = {
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_webhook_captured_123',
+              order_id: webhookRzpOrderId,
+              amount: 750000,
+              currency: 'INR',
+              status: 'captured'
+            }
+          }
+        }
+      };
+
+      const rawBody = JSON.stringify(eventPayload);
+      const signature = crypto
+        .createHmac('sha256', config.RAZORPAY_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/webhook')
+        .set('x-razorpay-signature', signature)
+        .set('Content-Type', 'application/json')
+        .send(rawBody);
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      // Verify order updated
+      const updatedOrder = await Order.findById(webhookOrder._id);
+      expect(updatedOrder.paymentStatus).toBe('paid');
+      expect(updatedOrder.orderStatus).toBe('confirmed');
+
+      // Verify payment updated
+      const updatedPayment = await Payment.findOne({ razorpayOrderId: webhookRzpOrderId });
+      expect(updatedPayment.paymentStatus).toBe('paid');
+    });
+
+    it('should process payment.failed webhook event', async () => {
+      const failedRzpOrderId = `order_failed_${Date.now()}`;
+      await Payment.create({
+        orderId: new mongoose.Types.ObjectId(),
+        razorpayOrderId: failedRzpOrderId,
+        amount: 2000,
+        currency: 'INR',
+        paymentStatus: 'pending'
+      });
+
+      const eventPayload = {
+        event: 'payment.failed',
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_failed_123',
+              order_id: failedRzpOrderId,
+              error_description: 'Card declined by issuing bank'
+            }
+          }
+        }
+      };
+
+      const rawBody = JSON.stringify(eventPayload);
+      const signature = crypto
+        .createHmac('sha256', config.RAZORPAY_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/webhook')
+        .set('x-razorpay-signature', signature)
+        .set('Content-Type', 'application/json')
+        .send(rawBody);
+
+      expect(res.status).toBe(200);
+
+      const failedPayment = await Payment.findOne({ razorpayOrderId: failedRzpOrderId });
+      expect(failedPayment.paymentStatus).toBe('failed');
+      expect(failedPayment.failureReason).toBe('Card declined by issuing bank');
+    });
+  });
+});

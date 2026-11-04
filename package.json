@@ -1,0 +1,34 @@
+{
+  "name": "shopsphere-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ShopSphere — Advanced Full-Stack Fashion E-Commerce Platform",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "seed": "npm run seed --workspace=server",
+    "build": "npm run build --workspace=client",
+    "test": "npm run test --workspace=server && npm run test --workspace=client",
+    "test:server": "npm run test --workspace=server",
+    "test:client": "npm run test --workspace=client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "keywords": [
+    "ecommerce",
+    "fashion",
+    "react",
+    "express",
+    "mongodb",
+    "razorpay",
+    "fullstack"
+  ],
+  "author": "ShopSphere Engineering Team",
+  "license": "ISC"
+}

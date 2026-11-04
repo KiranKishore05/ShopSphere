@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-ivory: #FDFBF7;
+  --color-surface-white: #FFFFFF;
+  --color-surface-cream: #F7F4EC;
+  --color-border-subtle: #EAE5DA;
+  --color-text-ink: #161513;
+  --color-text-charcoal: #4B4843;
+  --color-text-muted: #827E77;
+  --color-accent-sand: #C8B293;
+  --color-accent-sand-dark: #9E8462;
+  --color-accent-sage: #788A75;
+  --color-accent-sage-dark: #4F604D;
+  --color-status-error: #BA4343;
+  --color-status-success: #3D7853;
+  --color-status-warning: #C78828;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg-ivory);
+    color: var(--color-text-ink);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-editorial {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F7F4EC;
+}
+::-webkit-scrollbar-thumb {
+  background: #C8B293;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9E8462;
+}
+
+/* High-contrast accessible focus ring */
+:focus-visible {
+  outline: 2px solid #C8B293;
+  outline-offset: 2px;
+}
