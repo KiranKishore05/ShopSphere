@@ -30,3 +30,4 @@ export const checkDbReadiness = (req, res, next) => {
 };
 
 export default checkDbReadiness;
+

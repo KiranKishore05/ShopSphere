@@ -18,12 +18,12 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'WOMEN', href: '/shop?gender=women' },
     { label: 'MEN', href: '/shop?gender=men' },
+    { label: 'WOMEN', href: '/shop?gender=women' },
+    { label: 'KIDS', href: '/shop?gender=kids' },
     { label: 'COLLECTIONS', href: '/shop' },
-    { label: 'OUTERWEAR', href: '/category/outerwear' },
-    { label: 'KNITWEAR', href: '/category/knitwear' },
-    { label: 'EDITORIAL', href: '/about' }
+    { label: 'NEW ARRIVALS', href: '/shop?sort=newest' },
+    { label: 'SALE', href: '/shop?sale=true' }
   ];
 
   const handleLogout = async () => {

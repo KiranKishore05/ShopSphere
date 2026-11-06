@@ -11,13 +11,15 @@ export default function AnnouncementBar() {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="hidden md:flex items-center gap-2 text-sphere-sand">
           <Sparkles className="w-3 h-3" />
-          <span>AUTUMN / WINTER 2026 ARCHIVE</span>
+          <span>INDIAN FASHION CURATION 2026</span>
         </div>
         
         <div className="text-center flex-1 mx-auto">
-          <span>Complimentary Express Shipping on Orders Above ₹1,999</span>
-          <span className="hidden sm:inline text-sphere-sand mx-2">•</span>
-          <span className="hidden sm:inline text-sphere-sand-light/80">Duty-Free Delivery Included</span>
+          <span>Free Shipping on Orders Above ₹999</span>
+          <span className="text-sphere-sand mx-2">|</span>
+          <span>Easy 7-Day Returns</span>
+          <span className="text-sphere-sand mx-2">|</span>
+          <span className="text-sphere-sand-light/90">Cash on Delivery Available</span>
         </div>
 
         <button
