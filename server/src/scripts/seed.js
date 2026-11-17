@@ -6,6 +6,7 @@ import Category from '../models/Category.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import Coupon from '../models/Coupon.js';
+import { uniqueProductImages } from './update-product-images.js';
 
 /**
  * ShopSphere Development Seed Script
@@ -577,10 +578,419 @@ const seedData = async () => {
         averageRating: 4.7,
         reviewCount: 16,
         totalSalesCount: 50
+      },
+
+      // ==========================================
+      // --- EXPANSION: 18 NEW PRODUCTS (40 TOTAL) ---
+      // ==========================================
+      // --- MEN (6 New: 14 Total) ---
+      {
+        name: "Men's Premium Cotton Overshirt",
+        slug: "mens-premium-cotton-overshirt",
+        description: "Heavyweight 100% twill cotton overshirt designed for transitional layering. Features dual utility chest pockets and a structured boxy fit.",
+        categoryId: categoryMap['shirts'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['overshirt', 'shirts', 'cotton', 'layering', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80', altText: "Men's Premium Cotton Overshirt in Khaki", isPrimary: true },
+          { url: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80', altText: "Men's Overshirt Pocket Detail", isPrimary: false }
+        ],
+        variants: [
+          { sku: 'M-OVS-KHK-M', size: 'M', color: { name: 'Khaki Tan', hexCode: '#C3B091' }, price: 1499, compareAtPrice: 2199, stockQuantity: 28 },
+          { sku: 'M-OVS-KHK-L', size: 'L', color: { name: 'Khaki Tan', hexCode: '#C3B091' }, price: 1499, compareAtPrice: 2199, stockQuantity: 22 },
+          { sku: 'M-OVS-OLV-M', size: 'M', color: { name: 'Army Olive', hexCode: '#4B5320' }, price: 1499, compareAtPrice: 2199, stockQuantity: 25 },
+          { sku: 'M-OVS-OLV-L', size: 'L', color: { name: 'Army Olive', hexCode: '#4B5320' }, price: 1499, compareAtPrice: 2199, stockQuantity: 20 }
+        ],
+        isFeatured: true,
+        averageRating: 4.8,
+        reviewCount: 31,
+        totalSalesCount: 94
+      },
+      {
+        name: "Men's Relaxed Fit Cargo Pants",
+        slug: "mens-relaxed-fit-cargo-pants",
+        description: "Modern utility cargo trousers made from durable cotton ripstop with ergonomic knee darts and secure flap cargo pockets.",
+        categoryId: categoryMap['bottomwear'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['cargos', 'bottomwear', 'relaxed', 'utility', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80', altText: "Men's Relaxed Fit Cargo Pants in Olive", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'M-CRG-OLV-30', size: '30', color: { name: 'Olive Green', hexCode: '#556B2F' }, price: 1799, compareAtPrice: 2499, stockQuantity: 18 },
+          { sku: 'M-CRG-OLV-32', size: '32', color: { name: 'Olive Green', hexCode: '#556B2F' }, price: 1799, compareAtPrice: 2499, stockQuantity: 30 },
+          { sku: 'M-CRG-BLK-32', size: '32', color: { name: 'Matte Black', hexCode: '#1A1A1A' }, price: 1799, compareAtPrice: 2499, stockQuantity: 24 },
+          { sku: 'M-CRG-BLK-34', size: '34', color: { name: 'Matte Black', hexCode: '#1A1A1A' }, price: 1799, compareAtPrice: 2499, stockQuantity: 16 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 27,
+        totalSalesCount: 78
+      },
+      {
+        name: "Men's Casual Printed Shirt",
+        slug: "mens-casual-printed-shirt",
+        description: "Contemporary geometric print shirt tailored from lightweight breathable viscose-cotton blend with spread collar and curved hem.",
+        categoryId: categoryMap['shirts'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['shirts', 'printed', 'casual', 'resort', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80', altText: "Men's Casual Printed Shirt in Navy Geometric", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'M-PRT-NAV-S', size: 'S', color: { name: 'Navy Print', hexCode: '#000080' }, price: 1199, compareAtPrice: 1799, stockQuantity: 20 },
+          { sku: 'M-PRT-NAV-M', size: 'M', color: { name: 'Navy Print', hexCode: '#000080' }, price: 1199, compareAtPrice: 1799, stockQuantity: 35 },
+          { sku: 'M-PRT-NAV-L', size: 'L', color: { name: 'Navy Print', hexCode: '#000080' }, price: 1199, compareAtPrice: 1799, stockQuantity: 25 }
+        ],
+        isFeatured: false,
+        averageRating: 4.5,
+        reviewCount: 19,
+        totalSalesCount: 62
+      },
+      {
+        name: "Men's Textured Knit Polo",
+        slug: "mens-textured-knit-polo",
+        description: "Elevated open-collar polo crafted in breathable honeycomb knit cotton. Features clean ribbed hems and a tailored silhouette.",
+        categoryId: categoryMap['t-shirts'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['polo', 'knitwear', 'textured', 'casual', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80', altText: "Men's Textured Knit Polo in Sand Dune", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'M-TKP-SND-M', size: 'M', color: { name: 'Sand Dune', hexCode: '#C2B280' }, price: 1299, compareAtPrice: 1899, stockQuantity: 30 },
+          { sku: 'M-TKP-SND-L', size: 'L', color: { name: 'Sand Dune', hexCode: '#C2B280' }, price: 1299, compareAtPrice: 1899, stockQuantity: 25 },
+          { sku: 'M-TKP-IVR-M', size: 'M', color: { name: 'Ivory White', hexCode: '#FFFFF0' }, price: 1299, compareAtPrice: 1899, stockQuantity: 22 },
+          { sku: 'M-TKP-IVR-L', size: 'L', color: { name: 'Ivory White', hexCode: '#FFFFF0' }, price: 1299, compareAtPrice: 1899, stockQuantity: 18 }
+        ],
+        isFeatured: true,
+        averageRating: 4.7,
+        reviewCount: 38,
+        totalSalesCount: 112
+      },
+      {
+        name: "Men's Slim Fit Formal Shirt",
+        slug: "mens-slim-fit-formal-shirt",
+        description: "Sharp poplin shirt woven from 100% two-ply Egyptian cotton with wrinkle-resistant finish and structured cutaway collar.",
+        categoryId: categoryMap['shirts'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['shirts', 'formal', 'office', 'slim-fit', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80', altText: "Men's Slim Fit Formal Shirt in Crisp White", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'M-FML-WHT-38', size: '38', color: { name: 'Crisp White', hexCode: '#FFFFFF' }, price: 1399, compareAtPrice: 1999, stockQuantity: 25 },
+          { sku: 'M-FML-WHT-40', size: '40', color: { name: 'Crisp White', hexCode: '#FFFFFF' }, price: 1399, compareAtPrice: 1999, stockQuantity: 35 },
+          { sku: 'M-FML-BLU-40', size: '40', color: { name: 'Sky Blue', hexCode: '#87CEEB' }, price: 1399, compareAtPrice: 1999, stockQuantity: 30 },
+          { sku: 'M-FML-BLU-42', size: '42', color: { name: 'Sky Blue', hexCode: '#87CEEB' }, price: 1399, compareAtPrice: 1999, stockQuantity: 20 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 23,
+        totalSalesCount: 85
+      },
+      {
+        name: "Men's Cotton Casual Shorts",
+        slug: "mens-cotton-casual-shorts",
+        description: "Tailored 8-inch inseam chino shorts crafted in stretch cotton twill with interior drawstring and zip-fly closure.",
+        categoryId: categoryMap['bottomwear'],
+        brand: 'ShopSphere',
+        gender: 'men',
+        tags: ['shorts', 'casual', 'summer', 'bottomwear', 'men'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80', altText: "Men's Cotton Casual Shorts in Beige", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'M-SHT-BEI-30', size: '30', color: { name: 'Warm Beige', hexCode: '#F5F5DC' }, price: 899, compareAtPrice: 1399, stockQuantity: 20 },
+          { sku: 'M-SHT-BEI-32', size: '32', color: { name: 'Warm Beige', hexCode: '#F5F5DC' }, price: 899, compareAtPrice: 1399, stockQuantity: 28 },
+          { sku: 'M-SHT-NAV-32', size: '32', color: { name: 'Deep Navy', hexCode: '#000080' }, price: 899, compareAtPrice: 1399, stockQuantity: 25 },
+          { sku: 'M-SHT-NAV-34', size: '34', color: { name: 'Deep Navy', hexCode: '#000080' }, price: 899, compareAtPrice: 1399, stockQuantity: 18 }
+        ],
+        isFeatured: false,
+        averageRating: 4.5,
+        reviewCount: 17,
+        totalSalesCount: 56
+      },
+
+      // --- WOMEN (8 New: 16 Total) ---
+      {
+        name: "Women's Premium Co-ord Set",
+        slug: "womens-premium-co-ord-set",
+        description: "Effortless luxury two-piece co-ord set featuring a relaxed notch-collar top and matching wide-leg trousers in breathable textured modal blend.",
+        categoryId: categoryMap['dresses-tops'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['co-ord', 'set', 'premium', 'lounge', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80', altText: "Women's Premium Co-ord Set in Oatmeal", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-CRD-BEI-S', size: 'S', color: { name: 'Oatmeal Beige', hexCode: '#E3DAC9' }, price: 2299, compareAtPrice: 3299, stockQuantity: 16 },
+          { sku: 'W-CRD-BEI-M', size: 'M', color: { name: 'Oatmeal Beige', hexCode: '#E3DAC9' }, price: 2299, compareAtPrice: 3299, stockQuantity: 24 },
+          { sku: 'W-CRD-BEI-L', size: 'L', color: { name: 'Oatmeal Beige', hexCode: '#E3DAC9' }, price: 2299, compareAtPrice: 3299, stockQuantity: 15 }
+        ],
+        isFeatured: true,
+        averageRating: 4.9,
+        reviewCount: 46,
+        totalSalesCount: 135
+      },
+      {
+        name: "Women's Floral Printed Maxi Dress",
+        slug: "womens-floral-printed-maxi-dress",
+        description: "Floor-grazing silhouette in fluid georgette fabric featuring delicate floral prints, a flattering V-neckline, and an empire waistline with subtle gathering.",
+        categoryId: categoryMap['dresses-tops'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['dress', 'maxi', 'floral', 'summer', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80', altText: "Women's Floral Printed Maxi Dress in Blush Rose", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-MAX-FLR-XS', size: 'XS', color: { name: 'Blush Rose', hexCode: '#FFB6C1' }, price: 1999, compareAtPrice: 2899, stockQuantity: 12 },
+          { sku: 'W-MAX-FLR-S', size: 'S', color: { name: 'Blush Rose', hexCode: '#FFB6C1' }, price: 1999, compareAtPrice: 2899, stockQuantity: 26 },
+          { sku: 'W-MAX-FLR-M', size: 'M', color: { name: 'Blush Rose', hexCode: '#FFB6C1' }, price: 1999, compareAtPrice: 2899, stockQuantity: 30 },
+          { sku: 'W-MAX-FLR-L', size: 'L', color: { name: 'Blush Rose', hexCode: '#FFB6C1' }, price: 1999, compareAtPrice: 2899, stockQuantity: 18 }
+        ],
+        isFeatured: true,
+        averageRating: 4.8,
+        reviewCount: 52,
+        totalSalesCount: 160
+      },
+      {
+        name: "Women's High-Waist Palazzo Pants",
+        slug: "womens-high-waist-palazzo-pants",
+        description: "Flowing wide-leg palazzos tailored in breathable rayon with an elasticated waistband and discreet slash pockets.",
+        categoryId: categoryMap['bottomwear'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['palazzo', 'bottomwear', 'ethnic-fusion', 'high-waist', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80', altText: "Women's High-Waist Palazzo Pants in Ivory", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-PLZ-IVR-S', size: 'S', color: { name: 'Ivory Cream', hexCode: '#FFFFF0' }, price: 1299, compareAtPrice: 1899, stockQuantity: 20 },
+          { sku: 'W-PLZ-IVR-M', size: 'M', color: { name: 'Ivory Cream', hexCode: '#FFFFF0' }, price: 1299, compareAtPrice: 1899, stockQuantity: 28 },
+          { sku: 'W-PLZ-BLK-M', size: 'M', color: { name: 'Classic Black', hexCode: '#000000' }, price: 1299, compareAtPrice: 1899, stockQuantity: 25 },
+          { sku: 'W-PLZ-BLK-L', size: 'L', color: { name: 'Classic Black', hexCode: '#000000' }, price: 1299, compareAtPrice: 1899, stockQuantity: 20 }
+        ],
+        isFeatured: false,
+        averageRating: 4.7,
+        reviewCount: 29,
+        totalSalesCount: 88
+      },
+      {
+        name: "Women's Cotton Casual Top",
+        slug: "womens-cotton-casual-top",
+        description: "Everyday staple square-neck top in soft ribbed pure cotton with subtle puff sleeves and a contoured hemline.",
+        categoryId: categoryMap['dresses-tops'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['top', 'cotton', 'casual', 'everyday', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80', altText: "Women's Cotton Casual Top in Pure White", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-TOP-WHT-XS', size: 'XS', color: { name: 'Pure White', hexCode: '#FFFFFF' }, price: 899, compareAtPrice: 1399, stockQuantity: 15 },
+          { sku: 'W-TOP-WHT-S', size: 'S', color: { name: 'Pure White', hexCode: '#FFFFFF' }, price: 899, compareAtPrice: 1399, stockQuantity: 25 },
+          { sku: 'W-TOP-WHT-M', size: 'M', color: { name: 'Pure White', hexCode: '#FFFFFF' }, price: 899, compareAtPrice: 1399, stockQuantity: 30 },
+          { sku: 'W-TOP-COR-M', size: 'M', color: { name: 'Warm Coral', hexCode: '#F88379' }, price: 899, compareAtPrice: 1399, stockQuantity: 20 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 33,
+        totalSalesCount: 95
+      },
+      {
+        name: "Women's Embroidered Straight Kurta",
+        slug: "womens-embroidered-straight-kurta",
+        description: "Classic straight-fit kurta crafted from Chanderi cotton silk, adorned with intricate Zari neckline embroidery and side slits.",
+        categoryId: categoryMap['ethnic-wear'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['kurta', 'ethnic', 'festive', 'embroidery', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80', altText: "Women's Embroidered Straight Kurta in Deep Maroon", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-STR-MRN-S', size: 'S', color: { name: 'Deep Maroon', hexCode: '#800000' }, price: 1499, compareAtPrice: 2299, stockQuantity: 18 },
+          { sku: 'W-STR-MRN-M', size: 'M', color: { name: 'Deep Maroon', hexCode: '#800000' }, price: 1499, compareAtPrice: 2299, stockQuantity: 26 },
+          { sku: 'W-STR-MRN-L', size: 'L', color: { name: 'Deep Maroon', hexCode: '#800000' }, price: 1499, compareAtPrice: 2299, stockQuantity: 22 },
+          { sku: 'W-STR-MRN-XL', size: 'XL', color: { name: 'Deep Maroon', hexCode: '#800000' }, price: 1499, compareAtPrice: 2299, stockQuantity: 14 }
+        ],
+        isFeatured: true,
+        averageRating: 4.8,
+        reviewCount: 41,
+        totalSalesCount: 122
+      },
+      {
+        name: "Women's Pleated Midi Skirt",
+        slug: "womens-pleated-midi-skirt",
+        description: "Accordion-pleated midi skirt in lightweight metallic satin featuring a stretch waistband and fluid movement for day-to-night styling.",
+        categoryId: categoryMap['bottomwear'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['skirt', 'midi', 'pleated', 'bottomwear', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80', altText: "Women's Pleated Midi Skirt in Sand Beige", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-SKT-SND-S', size: 'S', color: { name: 'Sand Beige', hexCode: '#C2B280' }, price: 1399, compareAtPrice: 1999, stockQuantity: 16 },
+          { sku: 'W-SKT-SND-M', size: 'M', color: { name: 'Sand Beige', hexCode: '#C2B280' }, price: 1399, compareAtPrice: 1999, stockQuantity: 24 },
+          { sku: 'W-SKT-SND-L', size: 'L', color: { name: 'Sand Beige', hexCode: '#C2B280' }, price: 1399, compareAtPrice: 1999, stockQuantity: 18 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 21,
+        totalSalesCount: 67
+      },
+      {
+        name: "Women's Relaxed Fit Cargo Pants",
+        slug: "womens-relaxed-fit-cargo-pants",
+        description: "High-waisted utility cargo trousers in soft cotton twill with elasticated back waist, adjustable hem toggles, and multi-pockets.",
+        categoryId: categoryMap['bottomwear'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['cargos', 'bottomwear', 'relaxed', 'streetwear', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80', altText: "Women's Relaxed Fit Cargo Pants in Khaki", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-CRG-KHK-28', size: '28', color: { name: 'Warm Khaki', hexCode: '#C3B091' }, price: 1699, compareAtPrice: 2399, stockQuantity: 18 },
+          { sku: 'W-CRG-KHK-30', size: '30', color: { name: 'Warm Khaki', hexCode: '#C3B091' }, price: 1699, compareAtPrice: 2399, stockQuantity: 28 },
+          { sku: 'W-CRG-BLK-30', size: '30', color: { name: 'Onyx Black', hexCode: '#111111' }, price: 1699, compareAtPrice: 2399, stockQuantity: 22 },
+          { sku: 'W-CRG-BLK-32', size: '32', color: { name: 'Onyx Black', hexCode: '#111111' }, price: 1699, compareAtPrice: 2399, stockQuantity: 15 }
+        ],
+        isFeatured: false,
+        averageRating: 4.7,
+        reviewCount: 35,
+        totalSalesCount: 104
+      },
+      {
+        name: "Women's Premium Casual Shirt",
+        slug: "womens-premium-casual-shirt",
+        description: "Relaxed drop-shoulder shirt woven from fine organic cotton poplin with clean mother-of-pearl buttons and curved hemline.",
+        categoryId: categoryMap['shirts'],
+        brand: 'ShopSphere',
+        gender: 'women',
+        tags: ['shirt', 'casual', 'organic', 'minimal', 'women'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80', altText: "Women's Premium Casual Shirt in Powder Blue", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'W-PCS-BLU-S', size: 'S', color: { name: 'Powder Blue', hexCode: '#B0E0E6' }, price: 1199, compareAtPrice: 1799, stockQuantity: 20 },
+          { sku: 'W-PCS-BLU-M', size: 'M', color: { name: 'Powder Blue', hexCode: '#B0E0E6' }, price: 1199, compareAtPrice: 1799, stockQuantity: 30 },
+          { sku: 'W-PCS-WHT-M', size: 'M', color: { name: 'Cloud White', hexCode: '#F8F9FA' }, price: 1199, compareAtPrice: 1799, stockQuantity: 25 },
+          { sku: 'W-PCS-WHT-L', size: 'L', color: { name: 'Cloud White', hexCode: '#F8F9FA' }, price: 1199, compareAtPrice: 1799, stockQuantity: 18 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 24,
+        totalSalesCount: 71
+      },
+
+      // --- KIDS (4 New: 10 Total) ---
+      {
+        name: "Kids Boys Cotton Shirt and Shorts Set",
+        slug: "kids-boys-cotton-shirt-and-shorts-set",
+        description: "Coordinated summer outfit including a breathable printed half-sleeve cotton shirt and soft twill shorts with an elasticated drawstring waistband.",
+        categoryId: categoryMap['kids-clothing'],
+        brand: 'ShopSphere Kids',
+        gender: 'kids',
+        tags: ['kids', 'boys', 'co-ord', 'summer', 'set'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=800&q=80', altText: "Kids Boys Cotton Shirt and Shorts Set in Sunny Yellow", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'K-BSS-YEL-S', size: 'S', color: { name: 'Sunny Yellow', hexCode: '#FFD700' }, price: 1199, compareAtPrice: 1699, stockQuantity: 20 },
+          { sku: 'K-BSS-YEL-M', size: 'M', color: { name: 'Sunny Yellow', hexCode: '#FFD700' }, price: 1199, compareAtPrice: 1699, stockQuantity: 28 },
+          { sku: 'K-BSS-BLU-M', size: 'M', color: { name: 'Sky Blue', hexCode: '#87CEEB' }, price: 1199, compareAtPrice: 1699, stockQuantity: 25 },
+          { sku: 'K-BSS-BLU-L', size: 'L', color: { name: 'Sky Blue', hexCode: '#87CEEB' }, price: 1199, compareAtPrice: 1699, stockQuantity: 18 }
+        ],
+        isFeatured: true,
+        averageRating: 4.8,
+        reviewCount: 28,
+        totalSalesCount: 82
+      },
+      {
+        name: "Kids Girls Printed Frock",
+        slug: "kids-girls-printed-frock",
+        description: "Charming flared frock crafted from pure cotton cambric with joyful botanical prints, flutter sleeves, and soft inner cotton lining.",
+        categoryId: categoryMap['kids-clothing'],
+        brand: 'ShopSphere Kids',
+        gender: 'kids',
+        tags: ['kids', 'girls', 'frock', 'dress', 'cotton'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=800&q=80', altText: "Kids Girls Printed Frock in Candy Pink", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'K-GPF-PNK-XS', size: 'XS', color: { name: 'Candy Pink', hexCode: '#FF69B4' }, price: 1099, compareAtPrice: 1599, stockQuantity: 15 },
+          { sku: 'K-GPF-PNK-S', size: 'S', color: { name: 'Candy Pink', hexCode: '#FF69B4' }, price: 1099, compareAtPrice: 1599, stockQuantity: 24 },
+          { sku: 'K-GPF-PNK-M', size: 'M', color: { name: 'Candy Pink', hexCode: '#FF69B4' }, price: 1099, compareAtPrice: 1599, stockQuantity: 22 }
+        ],
+        isFeatured: false,
+        averageRating: 4.7,
+        reviewCount: 22,
+        totalSalesCount: 64
+      },
+      {
+        name: "Kids Cartoon Graphic T-Shirt",
+        slug: "kids-cartoon-graphic-t-shirt",
+        description: "Super-soft 100% bio-washed cotton crewneck tee featuring durable water-based non-toxic playful cartoon illustrations.",
+        categoryId: categoryMap['kids-clothing'],
+        brand: 'ShopSphere Kids',
+        gender: 'kids',
+        tags: ['kids', 't-shirt', 'graphic', 'cotton'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=800&q=80', altText: "Kids Cartoon Graphic T-Shirt in Cobalt Blue", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'K-CGT-BLU-S', size: 'S', color: { name: 'Cobalt Blue', hexCode: '#0047AB' }, price: 899, compareAtPrice: 1299, stockQuantity: 25 },
+          { sku: 'K-CGT-BLU-M', size: 'M', color: { name: 'Cobalt Blue', hexCode: '#0047AB' }, price: 899, compareAtPrice: 1299, stockQuantity: 32 },
+          { sku: 'K-CGT-YEL-M', size: 'M', color: { name: 'Sunshine Yellow', hexCode: '#FFDB58' }, price: 899, compareAtPrice: 1299, stockQuantity: 20 }
+        ],
+        isFeatured: false,
+        averageRating: 4.6,
+        reviewCount: 19,
+        totalSalesCount: 58
+      },
+      {
+        name: "Kids Denim Dungaree Set",
+        slug: "kids-denim-dungaree-set",
+        description: "Versatile washed cotton denim dungarees paired with a soft striped cotton inner t-shirt. Features adjustable metal clasps and multiple pockets.",
+        categoryId: categoryMap['kids-clothing'],
+        brand: 'ShopSphere Kids',
+        gender: 'kids',
+        tags: ['kids', 'dungaree', 'denim', 'set', 'playwear'],
+        images: [
+          { url: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=800&q=80', altText: "Kids Denim Dungaree Set in Classic Wash", isPrimary: true }
+        ],
+        variants: [
+          { sku: 'K-DDS-DNM-S', size: 'S', color: { name: 'Mid Indigo Wash', hexCode: '#4B6F88' }, price: 1499, compareAtPrice: 2199, stockQuantity: 18 },
+          { sku: 'K-DDS-DNM-M', size: 'M', color: { name: 'Mid Indigo Wash', hexCode: '#4B6F88' }, price: 1499, compareAtPrice: 2199, stockQuantity: 25 },
+          { sku: 'K-DDS-DNM-L', size: 'L', color: { name: 'Mid Indigo Wash', hexCode: '#4B6F88' }, price: 1499, compareAtPrice: 2199, stockQuantity: 16 }
+        ],
+        isFeatured: true,
+        averageRating: 4.9,
+        reviewCount: 30,
+        totalSalesCount: 91
       }
     ];
 
     for (const prod of productsData) {
+      if (uniqueProductImages[prod.slug]) {
+        prod.images = [
+          {
+            url: uniqueProductImages[prod.slug].url,
+            altText: uniqueProductImages[prod.slug].altText,
+            isPrimary: true
+          }
+        ];
+      }
       const savedProd = await Product.findOneAndUpdate(
         { slug: prod.slug },
         prod,

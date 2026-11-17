@@ -65,14 +65,16 @@ describe('ShopSphere Client Shell & Routing', () => {
 
   it('renders hero headline and seasonal collections link', async () => {
     renderWithProviders(<App />, { route: '/' });
-    expect(await screen.findByText(/The Architecture/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Seasonal Collections/i)).toBeInTheDocument();
+    const modernFashionHeadings = await screen.findAllByText(/Modern Fashion/i);
+    expect(modernFashionHeadings.length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Shop by Category/i)).toBeInTheDocument();
   });
 
   it('renders brand pillars and client concierge options in the footer', async () => {
     renderWithProviders(<App />, { route: '/' });
-    expect(await screen.findByText(/Insured Global Transit/i)).toBeInTheDocument();
-    expect(await screen.findByText(/The Private Gazette/i)).toBeInTheDocument();
+    const freeShippingElements = await screen.findAllByText(/Free Shipping/i);
+    expect(freeShippingElements.length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Shop Categories/i)).toBeInTheDocument();
   });
 
   it('renders 404 Lost in the Archive view when navigating to an unknown route', async () => {

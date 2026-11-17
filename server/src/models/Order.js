@@ -84,15 +84,26 @@ const OrderSchema = new mongoose.Schema({
   }],
   trackingNumber: { type: String, default: '' },
   carrierName: { type: String, default: '' },
-  idempotencyKey: { type: String, default: null, index: true },
+  idempotencyKey: { type: String, default: null },
   cancellationReason: { type: String, default: '' },
-  cancelledAt: { type: Date }
+  cancelledAt: { type: Date },
+  couponUsageApplied: { type: Boolean, default: false },
+  couponUsageReleased: { type: Boolean, default: false }
 }, {
   timestamps: true
 });
 
 OrderSchema.index({ userId: 1, createdAt: -1 });
 OrderSchema.index({ orderStatus: 1, paymentStatus: 1, createdAt: -1 });
+OrderSchema.index(
+  { idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      idempotencyKey: { $type: 'string' }
+    }
+  }
+);
 
-export const Order = mongoose.model('Order', OrderSchema);
+export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
 export default Order;

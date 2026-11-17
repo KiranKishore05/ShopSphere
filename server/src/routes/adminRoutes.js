@@ -11,7 +11,8 @@ import {
   updateOrderStatusSchema,
   createCouponSchema,
   updateCouponSchema,
-  imageUploadSchema
+  imageUploadSchema,
+  updateCustomerStatusSchema
 } from '../validators/adminValidators.js';
 import { moderateReviewSchema } from '../validators/reviewValidators.js';
 import {
@@ -31,6 +32,7 @@ import {
 
 import {
   getAdminCategories,
+  getAdminCategoryById,
   createAdminCategory,
   updateAdminCategory,
   deleteAdminCategory
@@ -47,6 +49,12 @@ import {
   getAdminOrderById,
   updateAdminOrderStatus
 } from '../controllers/adminOrderController.js';
+
+import {
+  getAdminCustomers,
+  getAdminCustomerById,
+  updateAdminCustomerStatus
+} from '../controllers/adminCustomerController.js';
 
 import {
   getAdminCoupons,
@@ -82,7 +90,8 @@ router.get('/ping', (req, res) => {
   });
 });
 
-// Analytics
+// Analytics & Dashboard Overview
+router.get('/dashboard', getAdminAnalyticsSummary);
 router.get('/analytics/summary', getAdminAnalyticsSummary);
 
 // Products
@@ -96,6 +105,7 @@ router.post('/products/upload-image', validateBody(imageUploadSchema), uploadPro
 
 // Categories
 router.get('/categories', getAdminCategories);
+router.get('/categories/:id', validateParams(idParamSchema), getAdminCategoryById);
 router.post('/categories', validateBody(createCategorySchema), createAdminCategory);
 router.patch('/categories/:id', validateParams(idParamSchema), validateBody(updateCategorySchema), updateAdminCategory);
 router.delete('/categories/:id', validateParams(idParamSchema), deleteAdminCategory);
@@ -111,6 +121,11 @@ router.get('/inventory/movements', getAdminInventoryMovements);
 router.get('/orders', getAdminOrders);
 router.get('/orders/:id', validateParams(idParamSchema), getAdminOrderById);
 router.patch('/orders/:id/status', validateParams(idParamSchema), validateBody(updateOrderStatusSchema), updateAdminOrderStatus);
+
+// Customers
+router.get('/customers', getAdminCustomers);
+router.get('/customers/:id', validateParams(idParamSchema), getAdminCustomerById);
+router.patch('/customers/:id/status', validateParams(idParamSchema), validateBody(updateCustomerStatusSchema), updateAdminCustomerStatus);
 
 // Coupons
 router.get('/coupons', getAdminCoupons);

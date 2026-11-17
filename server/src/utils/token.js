@@ -31,5 +31,6 @@ export const clearAuthCookie = (res) => {
   res.clearCookie('token', {
     ...options,
     maxAge: 0,
+    expires: new Date(0),
   });
 };

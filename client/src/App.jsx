@@ -10,6 +10,8 @@ import CategoryPage from './pages/CategoryPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import CartPage from './pages/CartPage';
 import WishlistPage from './pages/WishlistPage';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -27,6 +29,8 @@ const AdminCategoriesPage = React.lazy(() => import('./pages/admin/AdminCategori
 const AdminInventoryPage = React.lazy(() => import('./pages/admin/AdminInventoryPage'));
 const AdminOrdersPage = React.lazy(() => import('./pages/admin/AdminOrdersPage'));
 const AdminOrderDetailPage = React.lazy(() => import('./pages/admin/AdminOrderDetailPage'));
+const AdminCustomersPage = React.lazy(() => import('./pages/admin/AdminCustomersPage'));
+const AdminCustomerDetailPage = React.lazy(() => import('./pages/admin/AdminCustomerDetailPage'));
 const AdminCouponsPage = React.lazy(() => import('./pages/admin/AdminCouponsPage'));
 const AdminReviewsPage = React.lazy(() => import('./pages/admin/AdminReviewsPage'));
 const AdminAnalyticsPage = React.lazy(() => import('./pages/admin/AdminAnalyticsPage'));
@@ -130,6 +134,22 @@ export default function App() {
             }
           />
           <Route
+            path="customers"
+            element={
+              <Suspense fallback={<AtelierLoadingFallback />}>
+                <AdminCustomersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="customers/:id"
+            element={
+              <Suspense fallback={<AtelierLoadingFallback />}>
+                <AdminCustomerDetailPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="coupons"
             element={
               <Suspense fallback={<AtelierLoadingFallback />}>
@@ -178,6 +198,8 @@ export default function App() {
             {/* Authentication Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Customer Shopping Routes */}
             <Route path="/cart" element={<CartPage />} />

@@ -20,8 +20,17 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import { checkDbReadiness } from './middleware/dbReadiness.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { csrfProtection } from './middleware/csrfProtection.js';
+import { isOriginAllowed } from './utils/corsOrigins.js';
 
 const app = express();
+
+// Configure trusted proxy for accurate client IP detection and rate-limiting on Render / reverse proxies
+// Trusts immediate reverse proxy (1 hop) by default, or respects TRUST_PROXY environment override
+const trustProxyValue = isNaN(Number(config.TRUST_PROXY))
+  ? (config.TRUST_PROXY === 'true' ? true : config.TRUST_PROXY === 'false' ? false : config.TRUST_PROXY)
+  : Number(config.TRUST_PROXY);
+app.set('trust proxy', trustProxyValue);
 
 // Performance HTTP Compression (gzip / deflate)
 app.use(compression({
@@ -37,20 +46,14 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS allowlist configuration
-const allowedOrigins = [
-  config.CLIENT_ORIGIN,
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-].filter(Boolean);
-
+// CORS configuration with multi-origin and project-specific Vercel preview support
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow server-to-server or curl requests with no origin
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`Origin '${origin}' not permitted by CORS policy`));
+    // Safely reject untrusted origins without raising internal 500 errors
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -66,6 +69,9 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser(config.COOKIE_SECRET));
+
+// CSRF Protection for state-changing HTTP methods
+app.use(csrfProtection);
 
 // Structured HTTP Request Logging
 if (config.NODE_ENV !== 'test') {

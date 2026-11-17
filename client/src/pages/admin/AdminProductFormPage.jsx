@@ -8,7 +8,8 @@ import {
   Image as ImageIcon,
   CheckCircle,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import {
   useAdminProduct,
@@ -18,7 +19,7 @@ import {
   useUploadProductImage
 } from '../../hooks/useAdmin';
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', 'One Size'];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40', '42', '44', 'One Size'];
 
 export default function AdminProductFormPage() {
   const { id } = useParams();
@@ -27,6 +28,14 @@ export default function AdminProductFormPage() {
 
   const { data: categoriesData } = useAdminCategories();
   const { data: productData, isLoading: isLoadingProduct } = useAdminProduct(id);
+
+  const categories = Array.isArray(categoriesData)
+    ? categoriesData
+    : Array.isArray(categoriesData?.categories)
+    ? categoriesData.categories
+    : Array.isArray(categoriesData?.data?.categories)
+    ? categoriesData.data.categories
+    : [];
 
   const createProductMutation = useCreateProduct();
   const updateProductMutation = useUpdateProduct();
@@ -107,10 +116,10 @@ export default function AdminProductFormPage() {
 
   // Set default category once categories load
   useEffect(() => {
-    if (!formData.categoryId && categoriesData && categoriesData.length > 0) {
-      setFormData((prev) => ({ ...prev, categoryId: categoriesData[0]._id }));
+    if (!formData.categoryId && categories && categories.length > 0) {
+      setFormData((prev) => ({ ...prev, categoryId: categories[0]._id }));
     }
-  }, [categoriesData, formData.categoryId]);
+  }, [categories, formData.categoryId]);
 
   // Handle image upload from computer file input
   const handleFileImageUpload = async (e) => {
@@ -318,7 +327,8 @@ export default function AdminProductFormPage() {
       navigate('/admin/products');
     } catch (err) {
       console.error('Save product error:', err);
-      setFormError(err.message || 'Failed to save product in atelier catalog.');
+      const serverMsg = err.response?.data?.message || err.message;
+      setFormError(serverMsg || 'Failed to save product in atelier catalog.');
     }
   };
 
@@ -364,9 +374,18 @@ export default function AdminProductFormPage() {
           <button
             type="submit"
             disabled={isSaving}
-            className="px-5 py-2 bg-[#161513] text-[#FDFBF7] text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#34302C] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-5 py-2 bg-[#161513] text-[#FDFBF7] text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#34302C] transition-colors disabled:opacity-50"
           >
-            {isSaving ? 'Saving Blueprint...' : isEditing ? 'Update Garment' : 'Publish to Atelier'}
+            {isSaving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Saving Blueprint...</span>
+              </>
+            ) : isEditing ? (
+              'Update Garment'
+            ) : (
+              'Publish to Atelier'
+            )}
           </button>
         </div>
       </div>
@@ -550,7 +569,7 @@ export default function AdminProductFormPage() {
                 className="w-full px-3 py-2 text-xs border border-[#EAE5DA] rounded-sm bg-white text-sphere-ink focus:border-sphere-ink focus:outline-none"
               >
                 <option value="">Select Category</option>
-                {categoriesData?.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat._id} value={cat._id}>
                     {cat.name}
                   </option>

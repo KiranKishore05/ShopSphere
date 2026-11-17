@@ -56,14 +56,15 @@ export const connectDB = async ({ retry = true, maxRetries = 3, retryDelayMs = 3
   }
 
   const connectOptions = {
-    serverSelectionTimeoutMS: config.NODE_ENV === 'test' ? 2000 : 3000,
-    connectTimeoutMS: 5000,
+    serverSelectionTimeoutMS: config.NODE_ENV === 'test' ? 2000 : 15000,
+    connectTimeoutMS: 15000,
     socketTimeoutMS: 45000,
+    family: 4,
     autoIndex: config.NODE_ENV !== 'production',
   };
 
   let attempts = 0;
-  const retriesToRun = (retry && config.NODE_ENV === 'production') ? maxRetries : 0;
+  const retriesToRun = retry ? maxRetries : 0;
 
   while (attempts <= retriesToRun) {
     attempts++;

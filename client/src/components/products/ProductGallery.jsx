@@ -11,39 +11,43 @@ export default function ProductGallery({ images = [], name = 'Product' }) {
   const isFailed = failedImages[selectedIndex];
 
   return (
-    <div className="flex flex-col-reverse md:flex-row gap-4">
-      {/* Thumbnails list */}
+    <div className="flex flex-col-reverse sm:flex-row gap-3.5 lg:gap-4 items-start w-full">
+      {/* 1. Left Vertical Thumbnails Strip (Desktop/Tablet) / Horizontal (Mobile) */}
       {validImages.length > 1 && (
-        <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto max-h-[580px] shrink-0">
-          {validImages.map((img, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setSelectedIndex(idx)}
-              className={`w-16 h-20 md:w-20 md:h-24 rounded-sm overflow-hidden border shrink-0 transition-all ${
-                selectedIndex === idx
-                  ? 'border-sphere-ink ring-1 ring-sphere-ink'
-                  : 'border-sphere-border opacity-70 hover:opacity-100'
-              }`}
-            >
-              <img
-                src={failedImages[idx] ? FALLBACK_IMAGE : img.url}
-                alt={img.altText || `${name} view ${idx + 1}`}
-                onError={() => setFailedImages((prev) => ({ ...prev, [idx]: true }))}
-                className="w-full h-full object-cover object-top"
-              />
-            </button>
-          ))}
+        <div className="flex sm:flex-col gap-2.5 overflow-x-auto sm:overflow-y-auto max-h-[460px] lg:max-h-[520px] shrink-0 w-full sm:w-auto pb-1 sm:pb-0 scrollbar-thin">
+          {validImages.map((img, idx) => {
+            const isSelected = selectedIndex === idx;
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedIndex(idx)}
+                className={`w-14 h-18 sm:w-16 sm:h-20 lg:w-[68px] lg:h-[84px] rounded-lg overflow-hidden border bg-[#FBF9F5] shrink-0 transition-all flex items-center justify-center p-1 ${
+                  isSelected
+                    ? 'border-[#161513] ring-1 ring-[#161513] shadow-xs'
+                    : 'border-[#EAE5DA] opacity-75 hover:opacity-100 hover:border-[#161513]/40'
+                }`}
+                aria-label={`View image ${idx + 1} of ${validImages.length}`}
+              >
+                <img
+                  src={failedImages[idx] ? FALLBACK_IMAGE : img.url}
+                  alt={img.altText || `${name} view ${idx + 1}`}
+                  onError={() => setFailedImages((prev) => ({ ...prev, [idx]: true }))}
+                  className="w-full h-full object-contain object-center"
+                />
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Main Focus Showcase Image */}
-      <div className="flex-1 bg-sphere-cream border border-sphere-border rounded-sm overflow-hidden aspect-[3/4] relative">
+      {/* 2. Main Focus Showcase Image Container (Fixed & Visually Balanced) */}
+      <div className="flex-1 w-full max-w-[480px] h-[380px] sm:h-[440px] lg:h-[500px] bg-[#FBF9F5] border border-[#EAE5DA] rounded-2xl overflow-hidden relative flex items-center justify-center p-4 sm:p-6 lg:p-8 shadow-xs">
         <img
           src={isFailed ? FALLBACK_IMAGE : currentImage.url}
           alt={currentImage.altText || name}
           onError={() => setFailedImages((prev) => ({ ...prev, [selectedIndex]: true }))}
-          className="w-full h-full object-cover object-top transition-transform duration-700 hover:scale-105"
+          className="max-w-full max-h-full w-auto h-auto object-contain object-center transition-transform duration-500 hover:scale-105 drop-shadow-xs"
         />
       </div>
     </div>

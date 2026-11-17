@@ -12,7 +12,7 @@ import * as catalogService from '../services/catalogService';
 vi.mock('../services/catalogService', () => ({
   fetchProducts: vi.fn(),
   fetchCategories: vi.fn(),
-  fetchCategoryProducts: vi.fn(),
+  fetchCategoryProducts: vi.fn().mockResolvedValue({ products: [] }),
   fetchProductBySlug: vi.fn()
 }));
 

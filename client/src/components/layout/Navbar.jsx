@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Heart, ShoppingBag, User, Menu, X, ArrowRight, LogOut, MapPin } from 'lucide-react';
-import HealthStatusBadge from '../common/HealthStatusBadge';
+import { Search, Heart, ShoppingBag, User, Menu, X, ArrowRight, LogOut, MapPin, Package } from 'lucide-react';
 import SearchAutocomplete from './SearchAutocomplete';
 import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../hooks/useCart';
@@ -11,6 +10,7 @@ import { useCartDrawerStore } from '../../store/useCartDrawerStore';
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [navSearchQuery, setNavSearchQuery] = useState('');
   const { user, isAuthenticated, logout } = useAuth();
   const { totalItems: cartCount } = useCart();
   const { totalItems: wishlistCount } = useWishlist();
@@ -18,12 +18,12 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'MEN', href: '/shop?gender=men' },
-    { label: 'WOMEN', href: '/shop?gender=women' },
-    { label: 'KIDS', href: '/shop?gender=kids' },
-    { label: 'COLLECTIONS', href: '/shop' },
-    { label: 'NEW ARRIVALS', href: '/shop?sort=newest' },
-    { label: 'SALE', href: '/shop?sale=true' }
+    { label: 'Men', href: '/shop?gender=men' },
+    { label: 'Women', href: '/shop?gender=women' },
+    { label: 'Kids', href: '/shop?gender=kids' },
+    { label: 'Collections', href: '/shop' },
+    { label: 'New Arrivals', href: '/shop?sort=newest' },
+    { label: 'Sale', href: '/shop?sale=true' }
   ];
 
   const handleLogout = async () => {
@@ -36,183 +36,220 @@ export default function Navbar() {
     }
   };
 
+  const handleInlineSearchSubmit = (e) => {
+    e.preventDefault();
+    if (navSearchQuery.trim()) {
+      navigate(`/shop?search=${encodeURIComponent(navSearchQuery.trim())}`);
+      setNavSearchQuery('');
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-sphere-ivory/95 backdrop-blur-md border-b border-sphere-border transition-all">
+    <header className="sticky top-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-md border-b border-[#EAE5DA] transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 sm:h-18 gap-4">
           
-          {/* Left: Mobile Menu Button & Primary Desktop Navigation */}
-          <div className="flex items-center gap-6">
+          {/* Left: Mobile Toggle & Brand Logo */}
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-sphere-ink hover:text-sphere-sand transition-colors"
+              className="lg:hidden p-2 text-[#161513] hover:text-[#827E77] transition-colors"
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            <nav className="hidden lg:flex items-center gap-7 text-[12px] font-medium tracking-[0.12em] text-sphere-charcoal">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.label}
-                  to={link.href}
-                  className="hover:text-sphere-ink transition-colors relative py-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1.5px] after:bg-sphere-ink hover:after:w-full after:transition-all after:duration-200"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-
-          {/* Center: Brand Identity Logo */}
-          <div className="text-center">
-            <Link to="/" className="inline-block group">
-              <span className="font-editorial text-2xl sm:text-3xl font-normal tracking-[0.2em] text-sphere-ink block group-hover:opacity-80 transition-opacity">
-                SHOPSPHERE
-              </span>
-              <span className="text-[9px] tracking-[0.35em] text-sphere-muted uppercase block -mt-1 font-sans">
-                Haute & Prêt-à-Porter
-              </span>
+            <Link to="/" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 rounded-lg bg-[#161513] text-[#FDFBF7] flex items-center justify-center shrink-0 shadow-xs group-hover:bg-[#34302C] transition-colors">
+                <ShoppingBag className="w-5 h-5" strokeWidth={2.2} />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-sans text-xl sm:text-2xl font-bold tracking-tight text-[#161513] leading-none">
+                  ShopSphere
+                </span>
+                <span className="text-[9px] tracking-wider text-[#827E77] font-medium hidden sm:block mt-0.5">
+                  A Premium Fashion E-Commerce Brand
+                </span>
+              </div>
             </Link>
           </div>
 
-          {/* Right: Actions, Health Badge & Cart */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Live API Health Monitor Pill */}
-            <div className="hidden sm:block">
-              <HealthStatusBadge />
-            </div>
-
-            {/* Search Trigger & Autocomplete Dropdown */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSearchOpen(!searchOpen)}
-                className={`p-2 transition-colors ${
-                  searchOpen ? 'text-sphere-ink bg-black/5 rounded-full' : 'text-sphere-ink hover:text-sphere-sand'
+          {/* Center Navigation Links (Desktop) */}
+          <nav className="hidden lg:flex items-center gap-7 text-[13px] font-medium text-[#4B4843]">
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                to={link.href}
+                className={`transition-colors relative py-1 ${
+                  link.label === 'Sale' 
+                    ? 'text-rose-700 font-semibold hover:text-rose-900' 
+                    : 'hover:text-[#161513]'
                 }`}
-                aria-label="Search Collection"
               >
-                <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              </button>
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
+          {/* Right: Embedded Search, User, Wishlist, Cart */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            
+            {/* Inline Desktop Search Pill */}
+            <div className="relative hidden md:block">
+              <form
+                onSubmit={handleInlineSearchSubmit}
+                className="flex items-center bg-[#F7F4EC] border border-[#EAE5DA] rounded-full px-3.5 py-1.5 w-56 lg:w-68 focus-within:bg-white focus-within:border-[#161513] transition-all text-xs"
+              >
+                <Search className="w-3.5 h-3.5 text-[#827E77] mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search for products, categories..."
+                  value={navSearchQuery}
+                  onChange={(e) => setNavSearchQuery(e.target.value)}
+                  onFocus={() => setSearchOpen(true)}
+                  className="bg-transparent border-none outline-none w-full text-xs text-[#161513] placeholder-[#827E77] focus:ring-0"
+                />
+              </form>
+
+              {/* Search Suggestions Dropdown Overlay */}
               <SearchAutocomplete
                 isOpen={searchOpen}
                 onClose={() => setSearchOpen(false)}
               />
             </div>
 
-            {/* Wishlist Link */}
+            {/* Mobile Search Icon Button */}
+            <div className="md:hidden relative">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(!searchOpen)}
+                className="p-2 text-[#161513] hover:text-[#827E77] transition-colors"
+                aria-label="Search Products"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+              {searchOpen && (
+                <SearchAutocomplete
+                  isOpen={searchOpen}
+                  onClose={() => setSearchOpen(false)}
+                />
+              )}
+            </div>
+
+            {/* User Account Link */}
+            <Link
+              to={isAuthenticated ? '/account/profile' : '/login'}
+              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
+              aria-label={isAuthenticated ? 'Account Profile' : 'Account Login'}
+              title={isAuthenticated ? `Signed in as ${user?.name}` : 'Sign In'}
+            >
+              {isAuthenticated ? (
+                <span className="w-7 h-7 rounded-full bg-[#E6D7C3] text-[#161513] text-xs font-semibold flex items-center justify-center border border-[#C8B293]">
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </span>
+              ) : (
+                <User className="w-5 h-5" />
+              )}
+            </Link>
+
+            {/* Wishlist Link with Heart Badge */}
             <Link
               to="/wishlist"
-              className="p-2 text-sphere-ink hover:text-sphere-sand transition-colors relative hidden sm:inline-block"
+              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
               aria-label="Wishlist"
+              title="Wishlist"
             >
-              <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              <Heart className="w-5 h-5" />
               {wishlistCount > 0 && (
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-sphere-status-error text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#BA4343] text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-xs">
                   {wishlistCount}
                 </span>
               )}
             </Link>
 
-            {/* Admin Portal Shortcut if Admin */}
+            {/* Shopping Cart Button with Red Count Badge */}
+            <button
+              onClick={openCartDrawer}
+              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
+              aria-label="Shopping Cart"
+              title="Shopping Cart"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {cartCount > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#BA4343] text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-xs">
+                  {cartCount}
+                </span>
+              ) : (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#161513] text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-xs">
+                  0
+                </span>
+              )}
+            </button>
+
+            {/* Admin Portal Shortcut if user is Admin */}
             {isAuthenticated && user?.role === 'admin' && (
               <Link
                 to="/admin"
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-[#161513] text-[#FDFBF7] text-[10px] font-semibold tracking-widest uppercase rounded-xs hover:bg-[#34302C] transition-colors"
+                className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 bg-[#161513] text-[#FDFBF7] text-[10px] font-semibold tracking-wider uppercase rounded hover:bg-[#34302C] transition-colors ml-1"
               >
-                <span>Admin</span>
+                Admin
               </Link>
             )}
 
-            {/* Account Link */}
-            <Link
-              to={isAuthenticated ? '/account/profile' : '/login'}
-              className="p-2 text-sphere-ink hover:text-sphere-sand transition-colors relative"
-              aria-label={isAuthenticated ? 'Account Profile' : 'Account Login'}
-              title={isAuthenticated ? `Signed in as ${user?.name}` : 'Sign In'}
-            >
-              {isAuthenticated ? (
-                <span className="w-6 h-6 rounded-full bg-sphere-sand-light text-sphere-ink text-[11px] font-editorial flex items-center justify-center font-bold border border-sphere-sand/40">
-                  {user?.name?.[0]?.toUpperCase() || 'U'}
-                </span>
-              ) : (
-                <User className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              )}
-            </Link>
-
-            {/* Shopping Cart Trigger */}
-            <button
-              onClick={openCartDrawer}
-              className="p-2 text-sphere-ink hover:text-sphere-sand transition-colors relative group"
-              aria-label="Shopping Bag"
-            >
-              <div className="flex items-center gap-1.5">
-                <ShoppingBag className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                <span className="text-[11px] font-semibold tracking-wider text-sphere-ink group-hover:text-sphere-sand hidden md:inline">
-                  BAG
-                </span>
-                <span className="w-4 h-4 bg-sphere-ink text-sphere-ivory text-[10px] rounded-full flex items-center justify-center font-bold">
-                  {cartCount}
-                </span>
-              </div>
-            </button>
           </div>
 
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-sphere-border bg-sphere-ivory px-6 py-6 space-y-4 animate-fadeIn">
-          <div className="mb-4 pb-3 border-b border-sphere-border flex items-center justify-between">
-            <span className="text-xs uppercase tracking-wider text-sphere-muted">Gateway Status:</span>
-            <HealthStatusBadge />
-          </div>
-
-          {/* Mobile Search Autocomplete */}
+        <div className="lg:hidden border-t border-[#EAE5DA] bg-[#FDFBF7] px-6 py-5 space-y-4 shadow-lg animate-fadeIn">
+          {/* Mobile Search */}
           <SearchAutocomplete
             isOpen={true}
             isMobile={true}
             onClose={() => setMobileMenuOpen(false)}
           />
-          {navLinks.map((link) => (
-            <Link
-              key={link.label}
-              to={link.href}
-              className="flex items-center justify-between py-2 text-sm font-medium tracking-widest text-sphere-ink hover:text-sphere-sand border-b border-sphere-border/50"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <span>{link.label}</span>
-              <ArrowRight className="w-4 h-4 text-sphere-sand" />
-            </Link>
-          ))}
+
+          {/* Navigation Links */}
+          <div className="space-y-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                to={link.href}
+                className="flex items-center justify-between py-2.5 text-sm font-medium text-[#161513] hover:text-[#BA4343] border-b border-[#EAE5DA]/50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span>{link.label}</span>
+                <ArrowRight className="w-4 h-4 text-[#827E77]" />
+              </Link>
+            ))}
+          </div>
 
           {/* Customer Account & Shopping Links */}
-          <div className="pt-2 border-t border-sphere-border space-y-2">
+          <div className="pt-2 border-t border-[#EAE5DA] space-y-2">
             <Link
               to="/wishlist"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-sphere-charcoal"
+              className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-[#4B4843]"
             >
               <span className="flex items-center gap-2">
-                <Heart className="w-4 h-4 text-sphere-sand" />
+                <Heart className="w-4 h-4 text-[#BA4343]" />
                 <span>Wishlist</span>
               </span>
-              <span className="text-sphere-muted">({wishlistCount})</span>
+              <span className="text-[#827E77]">({wishlistCount})</span>
             </Link>
 
             <Link
               to="/cart"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-sphere-charcoal"
+              className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-[#4B4843]"
             >
               <span className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-sphere-sand" />
-                <span>Shopping Bag</span>
+                <ShoppingBag className="w-4 h-4 text-[#161513]" />
+                <span>Shopping Cart</span>
               </span>
-              <span className="text-sphere-muted">({cartCount})</span>
+              <span className="text-[#827E77]">({cartCount})</span>
             </Link>
 
             {isAuthenticated ? (
@@ -221,9 +258,9 @@ export default function Navbar() {
                   <Link
                     to="/admin"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-amber-900 font-semibold bg-amber-50 px-2 rounded-xs border border-amber-200"
+                    className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-amber-900 font-semibold bg-amber-50 px-2 rounded border border-amber-200"
                   >
-                    <span>Executive Admin Portal</span>
+                    <span>Admin Dashboard</span>
                     <span>→</span>
                   </Link>
                 )}
@@ -231,48 +268,61 @@ export default function Navbar() {
                 <Link
                   to="/account/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-sphere-charcoal"
+                  className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-[#4B4843]"
                 >
                   <span className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-sphere-sand" />
+                    <User className="w-4 h-4 text-[#827E77]" />
                     <span>My Profile</span>
                   </span>
-                  <span className="text-sphere-muted">→</span>
+                  <span className="text-[#827E77]">→</span>
+                </Link>
+
+                <Link
+                  to="/account/orders"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-[#4B4843]"
+                >
+                  <span className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-[#827E77]" />
+                    <span>My Orders</span>
+                  </span>
+                  <span className="text-[#827E77]">→</span>
                 </Link>
 
                 <Link
                   to="/account/addresses"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-sphere-charcoal"
+                  className="flex items-center justify-between py-2 text-xs uppercase tracking-wider text-[#4B4843]"
                 >
                   <span className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-sphere-sand" />
+                    <MapPin className="w-4 h-4 text-[#827E77]" />
                     <span>Address Book</span>
                   </span>
-                  <span className="text-sphere-muted">→</span>
+                  <span className="text-[#827E77]">→</span>
                 </Link>
 
                 <button
                   onClick={handleLogout}
-                  className="w-full mt-2 py-2.5 text-center text-xs uppercase tracking-luxury text-sphere-status-error border border-sphere-status-error/40 hover:bg-sphere-status-error/10 transition-colors flex items-center justify-center gap-2"
+                  className="w-full mt-2 py-2.5 text-center text-xs uppercase tracking-wider text-[#BA4343] border border-[#BA4343]/30 hover:bg-rose-50 transition-colors flex items-center justify-center gap-2 rounded"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Sign Out</span>
                 </button>
               </>
             ) : (
-              <div className="pt-4 flex flex-col gap-2 text-xs tracking-wider">
+              <div className="pt-3 flex flex-col gap-2 text-xs tracking-wider">
                 <Link
                   to="/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2.5 text-center bg-sphere-ink text-sphere-ivory uppercase font-medium rounded-sm"
+                  aria-label="Sign In to Atelier"
+                  className="py-2.5 text-center bg-[#161513] text-[#FDFBF7] uppercase font-medium rounded hover:bg-[#34302C] transition-colors"
                 >
-                  Sign In to Atelier
+                  Sign In
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-center text-sphere-muted hover:text-sphere-ink uppercase"
+                  className="py-2 text-center text-[#827E77] hover:text-[#161513] uppercase font-medium"
                 >
                   Create Account
                 </Link>

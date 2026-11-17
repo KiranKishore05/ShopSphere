@@ -11,7 +11,9 @@ import {
   XCircle,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Shirt,
+  RefreshCw
 } from 'lucide-react';
 import { useAdminProducts, useAdminCategories, useDeleteProduct } from '../../hooks/useAdmin';
 
@@ -21,23 +23,50 @@ export default function AdminProductsPage() {
   const [category, setCategory] = useState('');
   const [gender, setGender] = useState('');
   const [stock, setStock] = useState('');
+  const [status, setStatus] = useState('');
+  const [notification, setNotification] = useState(null);
   const [productToDelete, setProductToDelete] = useState(null);
 
   const { data: categoriesData } = useAdminCategories();
-  const { data: productsData, isLoading, isError, refetch } = useAdminProducts({
+  const {
+    data: productsData,
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useAdminProducts({
     page,
     limit: 15,
-    search: search || undefined,
+    search: search ? search.trim() : undefined,
     category: category || undefined,
     gender: gender || undefined,
-    stock: stock || undefined
+    stock: stock || undefined,
+    status: status || undefined
   });
 
   const deleteProductMutation = useDeleteProduct();
 
-  const products = productsData?.data?.products || [];
-  const meta = productsData?.data?.meta || { page: 1, totalPages: 1, total: 0 };
-  const categories = categoriesData || [];
+  // Resilient data unwrapping: supports { products: [], meta: {} }, { data: { products: [] } }, or []
+  const products =
+    productsData?.products ||
+    productsData?.data?.products ||
+    (Array.isArray(productsData) ? productsData : []);
+
+  const meta =
+    productsData?.meta ||
+    productsData?.data?.meta || {
+      page: 1,
+      totalPages: 1,
+      total: products.length
+    };
+
+  const categories = Array.isArray(categoriesData)
+    ? categoriesData
+    : Array.isArray(categoriesData?.categories)
+    ? categoriesData.categories
+    : Array.isArray(categoriesData?.data?.categories)
+    ? categoriesData.data.categories
+    : [];
 
   const formatPrice = (val) =>
     new Intl.NumberFormat('en-IN', {
@@ -49,11 +78,20 @@ export default function AdminProductsPage() {
   const handleDeleteConfirm = async () => {
     if (!productToDelete) return;
     try {
-      await deleteProductMutation.mutateAsync(productToDelete._id);
+      const res = await deleteProductMutation.mutateAsync(productToDelete._id);
+      setNotification({
+        type: 'success',
+        message: res?.message || `"${productToDelete.name}" has been safely deactivated.`
+      });
       setProductToDelete(null);
+      setTimeout(() => setNotification(null), 5000);
     } catch (err) {
       console.error('Delete product error:', err);
-      alert(err.message || 'Failed to deactivate or delete garment.');
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.message || err.message || 'Failed to deactivate or delete garment.'
+      });
+      setTimeout(() => setNotification(null), 5000);
     }
   };
 
@@ -78,6 +116,32 @@ export default function AdminProductsPage() {
           <span>Add New Garment</span>
         </Link>
       </div>
+
+      {/* Operation Feedback Banner */}
+      {notification && (
+        <div
+          className={`p-3.5 rounded-sm border text-xs flex items-center justify-between ${
+            notification.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.type === 'error' ? (
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            ) : (
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-xs font-semibold underline opacity-75 hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 border border-[#EAE5DA] rounded-sm shadow-xs flex flex-col md:flex-row gap-3">
@@ -126,6 +190,7 @@ export default function AdminProductsPage() {
           <option value="women">Women</option>
           <option value="men">Men</option>
           <option value="unisex">Unisex</option>
+          <option value="kids">Kids</option>
         </select>
 
         {/* Stock Status Filter */}
@@ -141,6 +206,20 @@ export default function AdminProductsPage() {
           <option value="low_stock">Low Stock (≤ 5)</option>
           <option value="out_of_stock">Out of Stock (0)</option>
         </select>
+
+        {/* Active/Inactive Status Filter */}
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          className="px-3 py-2 text-xs border border-[#EAE5DA] rounded-sm bg-white text-sphere-ink focus:border-sphere-ink focus:outline-none"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active in Catalogue</option>
+          <option value="inactive">Inactive / Deactivated</option>
+        </select>
       </div>
 
       {/* Product List Table */}
@@ -151,6 +230,26 @@ export default function AdminProductsPage() {
             <p className="text-xs text-[#827E77] tracking-wider uppercase font-semibold">
               Loading Catalog Entries...
             </p>
+          </div>
+        ) : isError ? (
+          <div className="p-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center mx-auto mb-3 border border-rose-200">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="font-editorial text-xl text-sphere-ink mb-1">
+              Unable to Load Garment Catalogue
+            </h3>
+            <p className="text-xs text-[#827E77] max-w-sm mx-auto mb-4">
+              {error?.message || 'A network error or database readiness issue prevented loading products.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#161513] text-[#FDFBF7] text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#34302C] transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Request</span>
+            </button>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16 px-4">
@@ -183,7 +282,8 @@ export default function AdminProductsPage() {
               </thead>
               <tbody className="divide-y divide-[#F2EFE9]">
                 {products.map((product) => {
-                  const prices = product.variants?.map((v) => v.price) || [0];
+                  const variants = Array.isArray(product.variants) ? product.variants : [];
+                  const prices = variants.length > 0 ? variants.map((v) => Number(v?.price) || 0) : [0];
                   const minPrice = Math.min(...prices);
                   const maxPrice = Math.max(...prices);
                   const priceDisplay =
@@ -192,9 +292,25 @@ export default function AdminProductsPage() {
                       : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`;
 
                   const primaryImg =
-                    product.images?.find((img) => img.isPrimary)?.url ||
+                    product.images?.find((img) => img?.isPrimary)?.url ||
                     product.images?.[0]?.url ||
+                    (typeof product.images?.[0] === 'string' ? product.images[0] : null) ||
                     'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80';
+
+                  const categoryName =
+                    product.categoryId?.name || product.categoryName || 'Unassigned';
+
+                  const totalStock =
+                    product.totalStock ??
+                    variants.reduce((acc, v) => acc + (Number(v?.stockQuantity) || 0), 0);
+
+                  const stockStatus =
+                    product.stockStatus ||
+                    (totalStock === 0
+                      ? 'out_of_stock'
+                      : variants.some((v) => (v?.stockQuantity || 0) > 0 && (v?.stockQuantity || 0) <= 5)
+                      ? 'low_stock'
+                      : 'healthy');
 
                   return (
                     <tr key={product._id} className="hover:bg-[#FCFAF7] transition-colors">
@@ -203,13 +319,13 @@ export default function AdminProductsPage() {
                         <div className="flex items-center gap-3">
                           <img
                             src={primaryImg}
-                            alt={product.name}
+                            alt={product.name || 'Garment'}
                             className="w-12 h-16 object-cover rounded-xs border border-[#EAE5DA] bg-[#F7F4EC]"
                           />
                           <div>
                             <p className="font-semibold text-xs text-sphere-ink">{product.name}</p>
                             <span className="text-[10px] text-[#827E77] uppercase tracking-wider font-mono">
-                              {product.brand} • {product.gender}
+                              {product.brand || 'ShopSphere'} • {product.gender || 'unisex'}
                             </span>
                           </div>
                         </div>
@@ -217,16 +333,16 @@ export default function AdminProductsPage() {
 
                       {/* Category */}
                       <td className="py-3 px-4 text-[#635E56] font-medium">
-                        {product.categoryId?.name || 'Unassigned'}
+                        {categoryName}
                       </td>
 
                       {/* Variants & SKUs */}
                       <td className="py-3 px-4">
                         <span className="font-mono text-xs font-semibold text-sphere-ink">
-                          {product.variants?.length || 0} variants
+                          {variants.length} variant{variants.length !== 1 ? 's' : ''}
                         </span>
                         <div className="text-[10px] text-[#827E77] truncate max-w-[140px]">
-                          {product.variants?.map((v) => v.sku).join(', ')}
+                          {variants.map((v) => v?.sku).filter(Boolean).join(', ') || 'No SKUs'}
                         </div>
                       </td>
 
@@ -240,14 +356,14 @@ export default function AdminProductsPage() {
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`inline-block px-2 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded-xs ${
-                              product.stockStatus === 'out_of_stock'
+                              stockStatus === 'out_of_stock'
                                 ? 'bg-red-100 text-red-800'
-                                : product.stockStatus === 'low_stock'
+                                : stockStatus === 'low_stock'
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}
                           >
-                            {product.totalStock} in stock
+                            {totalStock} in stock
                           </span>
                         </div>
                       </td>
@@ -337,11 +453,14 @@ export default function AdminProductsPage() {
               <AlertTriangle className="w-6 h-6" />
               <h3 className="font-editorial text-lg text-sphere-ink">Deactivate Garment Creation</h3>
             </div>
-            <p className="text-xs text-sphere-charcoal leading-relaxed mb-6">
+            <p className="text-xs text-sphere-charcoal leading-relaxed mb-4">
               Are you sure you want to deactivate or remove{' '}
               <span className="font-semibold text-sphere-ink">"{productToDelete.name}"</span>? It
               will immediately disappear from public customer browsing.
             </p>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xs text-[11px] text-amber-800 leading-relaxed mb-6">
+              <strong>Audit & Financial Protection:</strong> If this garment is referenced in existing customer orders or warehouse inventory movements, it will be safely deactivated (marked inactive) rather than hard deleted, preserving full financial history and accounting integrity.
+            </div>
             <div className="flex justify-end gap-3">
               <button
                 type="button"

@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
+import ForgotPasswordPage from './ForgotPasswordPage';
+import ResetPasswordPage from './ResetPasswordPage';
 import * as authService from '../services/authService';
 
 vi.mock('../services/authService');
@@ -153,6 +155,86 @@ describe('Frontend Authentication Suite (LoginPage & RegisterPage)', () => {
           phone: ''
         });
       });
+    });
+  });
+
+  describe('ForgotPasswordPage', () => {
+    it('renders the forgot password form elements', async () => {
+      renderWithProviders(<ForgotPasswordPage />, { route: '/forgot-password' });
+
+      expect(await screen.findByRole('heading', { name: /Forgot Password/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send Reset Link/i })).toBeInTheDocument();
+    });
+
+    it('submits forgot password request and displays instructions sent message', async () => {
+      authService.forgotPassword = vi.fn().mockResolvedValueOnce({
+        success: true,
+        data: { message: 'If an account exists with that email address, password reset instructions have been sent.' }
+      });
+
+      renderWithProviders(<ForgotPasswordPage />, { route: '/forgot-password' });
+
+      fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'client@domain.com' } });
+      fireEvent.click(screen.getByRole('button', { name: /Send Reset Link/i }));
+
+      expect(await screen.findByRole('heading', { name: /Instructions Sent/i })).toBeInTheDocument();
+      expect(screen.getByText(/If an account exists with that email address/i)).toBeInTheDocument();
+      expect(authService.forgotPassword).toHaveBeenCalledWith('client@domain.com');
+    });
+  });
+
+  describe('ResetPasswordPage', () => {
+    it('shows warning when reset token is missing from URL', async () => {
+      window.location.hash = '';
+      window.history.pushState({}, '', '/reset-password');
+      renderWithProviders(<ResetPasswordPage />, { route: '/reset-password' });
+
+      expect(await screen.findByText(/Invalid or missing reset link/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/New Password/i)).not.toBeInTheDocument();
+    });
+
+    it('rejects query-string token and displays invalid or missing reset link warning', async () => {
+      window.location.hash = '';
+      window.history.pushState({}, '', '/reset-password?token=insecure_query_string_token_123');
+      renderWithProviders(<ResetPasswordPage />, { route: '/reset-password?token=insecure_query_string_token_123' });
+
+      expect(await screen.findByText(/Invalid or missing reset link/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/New Password/i)).not.toBeInTheDocument();
+      window.history.pushState({}, '', '/reset-password');
+    });
+
+    it('extracts token from URL fragment, scrubs token from address bar, and submits form successfully', async () => {
+      authService.resetPassword = vi.fn().mockResolvedValueOnce({
+        success: true,
+        data: { message: 'Password has been reset successfully.' }
+      });
+
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+      window.history.pushState({}, '', '/reset-password');
+      window.location.hash = '#token=fragment_secure_token_789';
+
+      renderWithProviders(<ResetPasswordPage />, { route: '/reset-password' });
+
+      // Verifies token was immediately stripped from the address bar
+      expect(replaceStateSpy).toHaveBeenCalledWith(null, '', window.location.pathname);
+
+      expect(await screen.findByLabelText(/^New Password$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Confirm New Password/i)).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText(/^New Password$/i), { target: { value: 'NewSecurePassword123!' } });
+      fireEvent.change(screen.getByLabelText(/Confirm New Password/i), { target: { value: 'NewSecurePassword123!' } });
+      fireEvent.click(screen.getByRole('button', { name: /Update Password/i }));
+
+      expect(await screen.findByRole('heading', { name: /Password Updated/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Sign In Now/i })).toBeInTheDocument();
+      expect(authService.resetPassword).toHaveBeenCalledWith({
+        token: 'fragment_secure_token_789',
+        password: 'NewSecurePassword123!'
+      });
+
+      window.location.hash = '';
+      replaceStateSpy.mockRestore();
     });
   });
 });

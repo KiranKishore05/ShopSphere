@@ -77,16 +77,56 @@ export default function AdminInventoryPage() {
 
   const adjustStockMutation = useAdjustStock();
 
-  const inventoryItems = inventoryData?.data?.items || [];
-  const inventorySummary = inventoryData?.data?.summary || {};
-  const inventoryMeta = inventoryData?.data?.meta || { total: 0, totalPages: 1, lowStockCount: 0 };
-  const movements = movementsData?.data?.movements || [];
+  // Resilient data unwrapping: supports unwrapped { items, summary, meta }, axios wrapped { data: { items, summary, meta } }, or arrays
+  const inventoryItems =
+    inventoryData?.items ||
+    inventoryData?.data?.items ||
+    inventoryData?.variants ||
+    inventoryData?.data?.variants ||
+    (Array.isArray(inventoryData) ? inventoryData : []);
+
+  const inventorySummary =
+    inventoryData?.summary ||
+    inventoryData?.data?.summary ||
+    {};
+
+  const inventoryMeta =
+    inventoryData?.meta ||
+    inventoryData?.data?.meta ||
+    { total: 0, totalPages: 1, lowStockCount: 0 };
+
+  const movements =
+    movementsData?.movements ||
+    movementsData?.data?.movements ||
+    (Array.isArray(movementsData) ? movementsData : []);
+
+  const movementsMeta =
+    movementsData?.meta ||
+    movementsData?.data?.meta ||
+    { total: 0, totalPages: 1 };
 
   // Summary counts matching Image 1
-  const totalProductsCount = inventorySummary.totalProducts || inventorySummary.totalVariants || inventoryMeta.total || inventoryItems.length;
-  const inStockCount = inventorySummary.inStockCount ?? inventoryItems.filter(i => (i.stockQuantity || 0) > 5).length;
-  const lowStockCount = inventorySummary.lowStockCount ?? inventoryMeta.lowStockCount ?? inventoryItems.filter(i => (i.stockQuantity || 0) > 0 && (i.stockQuantity || 0) <= 5).length;
-  const outOfStockCount = inventorySummary.outOfStockCount ?? inventoryItems.filter(i => (i.stockQuantity || 0) === 0).length;
+  const totalProductsCount =
+    inventorySummary.totalProducts ??
+    inventorySummary.totalVariants ??
+    inventoryMeta.total ??
+    inventoryItems.length;
+
+  const inStockCount =
+    inventorySummary.inStockCount ??
+    inventorySummary.inStockProducts ??
+    inventoryItems.filter((i) => (i.stockQuantity || 0) > 5).length;
+
+  const lowStockCount =
+    inventorySummary.lowStockCount ??
+    inventorySummary.lowStockProducts ??
+    inventoryMeta.lowStockCount ??
+    inventoryItems.filter((i) => (i.stockQuantity || 0) > 0 && (i.stockQuantity || 0) <= 5).length;
+
+  const outOfStockCount =
+    inventorySummary.outOfStockCount ??
+    inventorySummary.outOfStockProducts ??
+    inventoryItems.filter((i) => (i.stockQuantity || 0) === 0).length;
 
   // Handle SKU selection
   const toggleSelectAll = () => {
@@ -735,7 +775,7 @@ export default function AdminInventoryPage() {
                           </td>
                           <td className="py-3 px-4">
                             <span className="inline-block px-2 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded-xs bg-[#F2EFE9] text-[#4B4843]">
-                              {mov.movementType?.replace('_', ' ') || 'adjustment'}
+                              {(mov.reason || mov.movementType)?.replace('_', ' ') || 'adjustment'}
                             </span>
                           </td>
                           <td className="py-3 px-4 font-mono font-bold">
@@ -791,6 +831,31 @@ export default function AdminInventoryPage() {
             )}
 
             <form onSubmit={handleAdjustSubmit} className="space-y-4 text-xs">
+              {inventoryItems.length > 1 && (
+                <div>
+                  <label className="block font-semibold uppercase tracking-wider text-[#635E56] mb-1">
+                    Target Garment / SKU
+                  </label>
+                  <select
+                    value={adjustingItem.sku}
+                    onChange={(e) => {
+                      const selected = inventoryItems.find((it) => it.sku === e.target.value);
+                      if (selected) {
+                        setAdjustingItem(selected);
+                        setAdjustError('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-[#EAE5DA] rounded-lg bg-white text-sphere-ink font-mono text-xs focus:border-sphere-ink focus:outline-none"
+                  >
+                    {inventoryItems.map((item) => (
+                      <option key={item.sku} value={item.sku}>
+                        {item.sku} — {item.productName} ({item.size}) [{item.stockQuantity} pcs]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="p-3 bg-[#FAF8F5] border border-[#EAE5DA] rounded-lg flex items-center justify-between font-mono">
                 <span className="text-[#827E77]">Current Active Stock:</span>
                 <span className="font-bold text-sm text-sphere-ink">{adjustingItem.stockQuantity} pcs</span>

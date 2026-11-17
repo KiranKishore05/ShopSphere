@@ -9,3 +9,12 @@ export const verifyRazorpayPayment = async (verificationPayload) => {
   const res = await api.post('/payments/razorpay/verify', verificationPayload);
   return res.data?.order || res.order || res.data;
 };
+
+export const recordPaymentFailure = async (failurePayload) => {
+  try {
+    const res = await api.post('/payments/razorpay/failed', failurePayload);
+    return res.data || res;
+  } catch (err) {
+    console.warn('Failed to record payment failure on server:', err);
+  }
+};

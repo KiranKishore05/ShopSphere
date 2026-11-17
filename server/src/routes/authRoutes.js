@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { register, login, logout, getMe } from '../controllers/authController.js';
-import { validateBody, registerSchema, loginSchema } from '../validators/authValidators.js';
+import { register, login, logout, getMe, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { validateBody, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidators.js';
 import { protect } from '../middleware/auth.js';
 import config from '../config/env.js';
 
@@ -27,5 +27,9 @@ router.post('/register', authLimiter, validateBody(registerSchema), register);
 router.post('/login', authLimiter, validateBody(loginSchema), login);
 router.post('/logout', logout);
 router.get('/me', protect, getMe);
+
+// Customer Password Reset Routes
+router.post('/forgot-password', authLimiter, validateBody(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', authLimiter, validateBody(resetPasswordSchema), resetPassword);
 
 export default router;

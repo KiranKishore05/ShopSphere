@@ -39,6 +39,22 @@ export const protect = async (req, res, next) => {
       return next(new AppError('Your account has been deactivated. Please contact support.', 403, 'ACCOUNT_DEACTIVATED'));
     }
 
+    // Verify token was not issued prior to or during a password reset (SEC-06-01)
+    if (currentUser.passwordChangedAt) {
+      const passwordChangedSeconds = Math.floor(currentUser.passwordChangedAt.getTime() / 1000);
+      // JWT `iat` is an integer expressed in seconds, while JavaScript Date timestamps have millisecond precision.
+      // An old session token issued in the same second as the password change will have
+      // `decoded.iat === passwordChangedSeconds`.
+      // Using `<=` ensures that any token issued at or before that second is strictly invalidated,
+      // preventing an old session issued in the same second from accidentally remaining valid.
+      // Newly authenticated sessions issued after the password reset will have `decoded.iat > passwordChangedSeconds`.
+      if (decoded.iat <= passwordChangedSeconds) {
+        return next(
+          new AppError('Session invalidated due to a recent password reset. Please sign in again.', 401, 'UNAUTHORIZED')
+        );
+      }
+    }
+
     // Attach authenticated user to request
     req.user = currentUser;
     next();

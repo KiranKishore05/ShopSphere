@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { ZodError } from 'zod';
 import config from '../config/env.js';
 
@@ -21,6 +22,28 @@ export const notFoundHandler = (req, res, next) => {
       details: []
     }
   });
+};
+
+/**
+ * Formats a safe server log message that omits query strings, raw error messages in production,
+ * and sensitive request data (headers, cookies, body, tokens).
+ */
+export const formatSafeErrorLog = (
+  err,
+  req = {},
+  statusCode = 500,
+  nodeEnv = config.NODE_ENV,
+  errorId = crypto.randomUUID()
+) => {
+  const method = req?.method || 'UNKNOWN';
+  const rawUrl = req?.originalUrl || req?.url || req?.path || '';
+  const pathname = rawUrl ? rawUrl.split(/[?#]/)[0] : 'unknown';
+
+  if (nodeEnv === 'production') {
+    return `[Internal Server Error] [${errorId}] ${method} ${pathname} (Status: ${statusCode})`;
+  }
+
+  return `[Internal Server Error] [${errorId}] ${method} ${pathname} (Status: ${statusCode}): ${err?.message || 'Unknown error'}`;
 };
 
 export const errorHandler = (err, req, res, next) => {
@@ -104,6 +127,12 @@ export const errorHandler = (err, req, res, next) => {
   if (config.NODE_ENV === 'production' && statusCode === 500 && !err.isOperational) {
     message = 'An unexpected internal error occurred on the server';
     details = [];
+  }
+
+  // Log unexpected internal errors safely on server console for observability
+  if (statusCode === 500 && config.NODE_ENV !== 'test') {
+    const errorId = crypto.randomUUID();
+    console.error(formatSafeErrorLog(err, req, statusCode, config.NODE_ENV, errorId));
   }
 
   const responsePayload = {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, RotateCcw, Check } from 'lucide-react';
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', '28', '30', '32', '34', 'One Size'];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40', '42', 'One Size'];
 
 const COLORS = [
   { name: 'Camel', hexCode: '#C8B293' },
@@ -81,7 +81,7 @@ export default function FilterSidebar({
       {/* Categories */}
       {categories.length > 0 && (
         <div className="space-y-3">
-          <h4 className="font-semibold text-[11px] uppercase tracking-wider text-sphere-ink">Collection Category</h4>
+          <h4 className="font-semibold text-[11px] uppercase tracking-wider text-sphere-ink">CATEGORIES</h4>
           <div className="space-y-1.5">
             {categories.map((cat) => {
               const isSelected = filters.category === cat.slug;
@@ -109,22 +109,27 @@ export default function FilterSidebar({
 
       {/* Gender Classification */}
       <div className="space-y-3">
-        <h4 className="font-semibold text-[11px] uppercase tracking-wider text-sphere-ink">Gender</h4>
-        <div className="grid grid-cols-3 gap-1.5">
-          {['women', 'men', 'unisex'].map((g) => {
-            const isSelected = filters.gender === g;
+        <h4 className="font-semibold text-[11px] uppercase tracking-wider text-sphere-ink">GENDER</h4>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: 'Men', value: 'men' },
+            { label: 'Women', value: 'women' },
+            { label: 'Kids', value: 'kids' },
+            { label: 'Unisex', value: 'unisex' }
+          ].map((item) => {
+            const isSelected = filters.gender?.toLowerCase() === item.value;
             return (
               <button
-                key={g}
+                key={item.value}
                 type="button"
-                onClick={() => handleGenderChange(g)}
-                className={`py-2 px-1 text-center capitalize border transition-all text-[11px] ${
+                onClick={() => handleGenderChange(item.value)}
+                className={`py-2 px-1 text-center border transition-all text-[11px] ${
                   isSelected
                     ? 'border-sphere-ink bg-sphere-ink text-sphere-ivory font-medium'
                     : 'border-sphere-border bg-sphere-surface text-sphere-charcoal hover:border-sphere-sand'
                 }`}
               >
-                {g}
+                {item.label}
               </button>
             );
           })}

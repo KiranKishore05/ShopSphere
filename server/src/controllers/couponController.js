@@ -44,12 +44,23 @@ export const validateAndCalculateCoupon = async (couponCode, subtotal, userId) =
     );
   }
 
-  // Check per-user order limit
+  // Check per-user order limit (only counting completed/confirmed orders, not failed/abandoned attempts)
   if (userId && coupon.perUserLimit) {
     const userOrderCount = await Order.countDocuments({
       userId,
       couponCode: coupon.code,
-      orderStatus: { $ne: 'cancelled' }
+      orderStatus: { $nin: ['cancelled'] },
+      $or: [
+        {
+          paymentMethod: 'cod',
+          orderStatus: 'delivered',
+          paymentStatus: 'paid'
+        },
+        {
+          paymentMethod: 'razorpay',
+          paymentStatus: 'paid'
+        }
+      ]
     });
 
     if (userOrderCount >= coupon.perUserLimit) {

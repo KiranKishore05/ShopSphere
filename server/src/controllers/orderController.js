@@ -5,6 +5,8 @@ import Coupon from '../models/Coupon.js';
 import { buildEnrichedCart } from './cartController.js';
 import { validateAndCalculateCoupon } from './couponController.js';
 import { deductOrderInventory, restoreOrderInventory } from '../services/inventoryService.js';
+import { consumeOrderCoupon, releaseOrderCoupon } from '../services/couponService.js';
+import { queueOrderConfirmationEmail, queueOrderCancelledEmail } from '../services/email/orderEmailEvents.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 /**
@@ -18,6 +20,67 @@ const generateOrderNumber = () => {
 };
 
 /**
+ * Safely verify user ownership of an order supporting unpopulated or populated ObjectId/string.
+ */
+export const isOrderOwner = (order, user) => {
+  if (!order || !user) return false;
+  const orderUserId = order.userId?._id
+    ? order.userId._id.toString()
+    : order.userId?.toString();
+  const currentUserId = user._id
+    ? user._id.toString()
+    : user.toString();
+
+  return Boolean(orderUserId && currentUserId && orderUserId === currentUserId);
+};
+
+/**
+ * Validates checkout request consistency against an existing idempotent order snapshot.
+ * Verifies paymentMethod, coupon, delivery address, items/quantities, and server totals.
+ */
+export const verifyOrderConsistency = (existingOrder, { paymentMethod, coupon, total, subtotal, resolvedAddress, itemsSnapshot }) => {
+  if (!existingOrder) return false;
+
+  // 1. Payment method match
+  if (existingOrder.paymentMethod !== paymentMethod) return false;
+
+  // 2. Coupon code match
+  const requestedCouponCode = coupon ? coupon.code : null;
+  const existingCouponCode = existingOrder.couponCode || null;
+  if (requestedCouponCode !== existingCouponCode) return false;
+
+  // 3. Address match (street address and postal code)
+  const existingAddr = existingOrder.shippingAddressSnapshot;
+  if (!existingAddr || existingAddr.postalCode !== resolvedAddress?.postalCode || existingAddr.streetAddress !== resolvedAddress?.streetAddress) {
+    return false;
+  }
+
+  // 4. Items and quantities match
+  if (!existingOrder.items || !itemsSnapshot || existingOrder.items.length !== itemsSnapshot.length) return false;
+  const existingItemsMap = new Map();
+  for (const it of existingOrder.items) {
+    const key = `${it.variantSku}:${it.quantity}`;
+    existingItemsMap.set(key, (existingItemsMap.get(key) || 0) + 1);
+  }
+  for (const it of itemsSnapshot) {
+    const key = `${it.variantSku}:${it.quantity}`;
+    const count = existingItemsMap.get(key) || 0;
+    if (count <= 0) return false;
+    existingItemsMap.set(key, count - 1);
+  }
+
+  // 5. Total and subtotal match
+  if (typeof total === 'number' && typeof existingOrder.total === 'number') {
+    if (Math.abs(existingOrder.total - total) > 0.01) return false;
+  }
+  if (typeof subtotal === 'number' && typeof existingOrder.subtotal === 'number') {
+    if (Math.abs(existingOrder.subtotal - subtotal) > 0.01) return false;
+  }
+
+  return true;
+};
+
+/**
  * POST /api/v1/orders/checkout
  * Converts customer's active cart into a confirmed/pending Order.
  * Authoritative recalculation of all prices, stocks, and discounts.
@@ -26,21 +89,21 @@ export const checkout = async (req, res, next) => {
   try {
     const { addressId, shippingAddress: customShippingAddress, paymentMethod, couponCode, idempotencyKey } = req.body;
 
-    // Idempotency check: if an order with same idempotencyKey exists for this user in last 10 minutes
+    // Idempotency check: if an order with same idempotencyKey exists
+    let existingKeyOrder = null;
     if (idempotencyKey) {
-      const recentOrder = await Order.findOne({
-        userId: req.user._id,
-        idempotencyKey,
-        createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) }
-      });
-      if (recentOrder) {
-        return res.status(200).json({
-          success: true,
-          data: {
-            order: recentOrder,
-            isDuplicate: true
-          }
-        });
+      existingKeyOrder = await Order.findOne({ idempotencyKey });
+      if (existingKeyOrder) {
+        // 1. Never expose or resolve an idempotency key belonging to another user
+        if (!isOrderOwner(existingKeyOrder, req.user)) {
+          return next(
+            new AppError(
+              'This idempotency key is already in use by another transaction.',
+              409,
+              'IDEMPOTENCY_KEY_IN_USE'
+            )
+          );
+        }
       }
     }
 
@@ -135,7 +198,37 @@ export const checkout = async (req, res, next) => {
       lineTotal: item.itemTotal
     }));
 
-    // 7. Create Order Document
+    // 7. Check existing idempotent order consistency if pre-check found a key for this user
+    if (existingKeyOrder) {
+      const isConsistent = verifyOrderConsistency(existingKeyOrder, {
+        paymentMethod,
+        coupon,
+        total,
+        subtotal,
+        resolvedAddress,
+        itemsSnapshot
+      });
+
+      if (!isConsistent) {
+        return next(
+          new AppError(
+            'Idempotency key reused with mismatched order details.',
+            409,
+            'IDEMPOTENCY_PAYLOAD_MISMATCH'
+          )
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          order: existingKeyOrder,
+          isDuplicate: true
+        }
+      });
+    }
+
+    // 8. Create Order Document
     const orderNumber = generateOrderNumber();
     const initialStatus = paymentMethod === 'cod' ? 'confirmed' : 'pending_payment';
     const initialPaymentStatus = 'pending';
@@ -167,17 +260,89 @@ export const checkout = async (req, res, next) => {
       statusTimeline
     });
 
-    await order.save();
+    try {
+      await order.save();
+    } catch (saveErr) {
+      if (
+        saveErr.code === 11000 &&
+        (saveErr.keyPattern?.idempotencyKey || saveErr.message?.includes('idempotencyKey'))
+      ) {
+        const existingOrder = await Order.findOne({ idempotencyKey });
+        if (!existingOrder) {
+          return next(
+            new AppError(
+              'An order with this idempotency key is already being processed.',
+              409,
+              'IDEMPOTENCY_CONFLICT'
+            )
+          );
+        }
 
-    // 8. If COD: immediately deduct inventory and clear cart
+        // Security check: Never expose another user's order
+        if (!isOrderOwner(existingOrder, req.user)) {
+          return next(
+            new AppError(
+              'This idempotency key is already in use by another transaction.',
+              409,
+              'IDEMPOTENCY_KEY_IN_USE'
+            )
+          );
+        }
+
+        // Full payload consistency check
+        const isConsistent = verifyOrderConsistency(existingOrder, {
+          paymentMethod,
+          coupon,
+          total,
+          subtotal,
+          resolvedAddress,
+          itemsSnapshot
+        });
+
+        if (!isConsistent) {
+          return next(
+            new AppError(
+              'Idempotency key reused with mismatched order details.',
+              409,
+              'IDEMPOTENCY_PAYLOAD_MISMATCH'
+            )
+          );
+        }
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            order: existingOrder,
+            isDuplicate: true
+          }
+        });
+      }
+      throw saveErr;
+    }
+
+    // 9. If COD: immediately deduct inventory and clear cart
     if (paymentMethod === 'cod') {
       await deductOrderInventory(order);
 
       if (coupon) {
-        await Coupon.findByIdAndUpdate(coupon._id, { $inc: { usedCount: 1 } });
+        try {
+          await consumeOrderCoupon(order._id);
+        } catch (consumeErr) {
+          await restoreOrderInventory(order, 'coupon_limit_exceeded');
+          order.orderStatus = 'cancelled';
+          order.cancellationReason = consumeErr.message || 'Promotional voucher allocation exhausted.';
+          await order.save();
+          return next(consumeErr);
+        }
       }
 
       await Cart.findOneAndUpdate({ userId: req.user._id }, { $set: { items: [] } });
+
+      await queueOrderConfirmationEmail({
+        order,
+        customerEmail: req.user.email,
+        customerName: req.user.name || order.shippingAddressSnapshot.fullName
+      });
     }
 
     res.status(201).json({
@@ -303,6 +468,11 @@ export const cancelMyOrder = async (req, res, next) => {
       await restoreOrderInventory(order, 'order_cancelled');
     }
 
+    // Atomically release coupon allocation if applied and not yet released
+    if (order.couponId) {
+      await releaseOrderCoupon(order._id);
+    }
+
     order.orderStatus = 'cancelled';
     order.cancellationReason = reason;
     order.cancelledAt = new Date();
@@ -313,6 +483,13 @@ export const cancelMyOrder = async (req, res, next) => {
     });
 
     await order.save();
+
+    await queueOrderCancelledEmail({
+      order,
+      customerEmail: req.user.email,
+      customerName: req.user.name || order.shippingAddressSnapshot.fullName,
+      cancellationReason: reason
+    });
 
     res.status(200).json({
       success: true,

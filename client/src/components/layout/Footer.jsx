@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, ShieldCheck, Truck, RotateCcw, Clock } from 'lucide-react';
+import { ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function Footer() {
   const [email, setEmail] = useState('');
@@ -15,105 +15,64 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-sphere-cream border-t border-sphere-border text-sphere-charcoal mt-24">
-      {/* Brand Value Pillars */}
-      <div className="border-b border-sphere-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-sphere-ivory border border-sphere-border flex items-center justify-center shrink-0 text-sphere-sand-dark">
-                <Truck className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-xs uppercase tracking-widest text-sphere-ink">Insured Global Transit</h4>
-                <p className="text-xs text-sphere-muted mt-1 leading-relaxed">Complimentary courier on orders over ₹1,999. Climate-conscious packing.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-sphere-ivory border border-sphere-border flex items-center justify-center shrink-0 text-sphere-sand-dark">
-                <RotateCcw className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-xs uppercase tracking-widest text-sphere-ink">14-Day Concierge Returns</h4>
-                <p className="text-xs text-sphere-muted mt-1 leading-relaxed">Effortless domestic returns and complimentary size exchanges.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-sphere-ivory border border-sphere-border flex items-center justify-center shrink-0 text-sphere-sand-dark">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-xs uppercase tracking-widest text-sphere-ink">Cryptographic Razorpay</h4>
-                <p className="text-xs text-sphere-muted mt-1 leading-relaxed">256-bit encrypted card, UPI, Netbanking, and Cash on Delivery.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-sphere-ivory border border-sphere-border flex items-center justify-center shrink-0 text-sphere-sand-dark">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-xs uppercase tracking-widest text-sphere-ink">Atelier Craftsmanship</h4>
-                <p className="text-xs text-sphere-muted mt-1 leading-relaxed">Precision cut garments tailored in limited, non-mass produced editions.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Footer Links */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+    <footer className="bg-[#F7F4EC] border-t border-[#EAE5DA] text-[#4B4843] mt-16">
+      {/* Main Footer Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-10">
           
-          {/* Brand Manifesto */}
-          <div className="lg:col-span-2 space-y-4">
-            <span className="font-editorial text-2xl font-normal tracking-[0.2em] text-sphere-ink block">
-              SHOPSPHERE
-            </span>
-            <p className="text-xs text-sphere-charcoal leading-relaxed max-w-sm">
-              An architectural exploration of contemporary silhouette and tactile luxury. Each garment is engineered from responsibly sourced fibers, uniting heritage tailoring with modern ease.
+          {/* Brand Info */}
+          <div className="lg:col-span-2 space-y-3">
+            <Link to="/" className="flex items-center gap-2 group inline-block">
+              <div className="w-8 h-8 rounded-lg bg-[#161513] text-[#FDFBF7] flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <span className="font-sans text-xl font-bold tracking-tight text-[#161513]">
+                ShopSphere
+              </span>
+            </Link>
+            <p className="text-xs text-[#4B4843] leading-relaxed max-w-sm">
+              A Premium Fashion E-Commerce Brand for Men, Women, and Kids. Contemporary styling, quality fabrics, and seamless online shopping across India.
             </p>
-            <div className="pt-2 text-[11px] text-sphere-muted">
-              <span>Atelier Flagship: Mumbai • New Delhi • London</span>
+            <div className="pt-1 text-xs text-[#827E77] flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>100% Genuine Quality • Verified Indian Brand</span>
             </div>
           </div>
 
-          {/* Collections */}
+          {/* Categories */}
           <div>
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sphere-ink mb-4">Collections</h4>
-            <ul className="space-y-2.5 text-xs text-sphere-charcoal">
-              <li><Link to="/shop?gender=women" className="hover:text-sphere-ink transition-colors">Women's Collection</Link></li>
-              <li><Link to="/shop?gender=men" className="hover:text-sphere-ink transition-colors">Men's Wardrobe</Link></li>
-              <li><Link to="/category/outerwear" className="hover:text-sphere-ink transition-colors">Tailored Overcoats</Link></li>
-              <li><Link to="/category/knitwear" className="hover:text-sphere-ink transition-colors">Pure Cashmere & Knitwear</Link></li>
-              <li><Link to="/category/accessories" className="hover:text-sphere-ink transition-colors">Minimal Leather Goods</Link></li>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#161513] mb-3">Shop Categories</h4>
+            <ul className="space-y-2 text-xs text-[#4B4843]">
+              <li><Link to="/shop?gender=men" className="hover:text-[#161513] transition-colors">Men's Fashion</Link></li>
+              <li><Link to="/shop?gender=women" className="hover:text-[#161513] transition-colors">Women's Collection</Link></li>
+              <li><Link to="/shop?gender=kids" className="hover:text-[#161513] transition-colors">Kids' Apparel</Link></li>
+              <li><Link to="/shop?sort=newest" className="hover:text-[#161513] transition-colors">New Arrivals</Link></li>
+              <li><Link to="/shop?sale=true" className="hover:text-rose-700 transition-colors font-medium">Sale & Offers</Link></li>
             </ul>
           </div>
 
-          {/* Client Concierge */}
+          {/* Customer Care */}
           <div>
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sphere-ink mb-4">Client Concierge</h4>
-            <ul className="space-y-2.5 text-xs text-sphere-charcoal">
-              <li><Link to="/account/orders" className="hover:text-sphere-ink transition-colors">Track Order Status</Link></li>
-              <li><Link to="/shipping-policy" className="hover:text-sphere-ink transition-colors">Shipping & Delivery</Link></li>
-              <li><Link to="/returns-policy" className="hover:text-sphere-ink transition-colors">Returns & Exchanges</Link></li>
-              <li><Link to="/contact" className="hover:text-sphere-ink transition-colors">Customer Care Atelier</Link></li>
-              <li><Link to="/admin" className="hover:text-sphere-ink transition-colors font-medium text-sphere-sand-dark">Staff Operations Portal</Link></li>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#161513] mb-3">Customer Care</h4>
+            <ul className="space-y-2 text-xs text-[#4B4843]">
+              <li><Link to="/account/orders" className="hover:text-[#161513] transition-colors">Track Order</Link></li>
+              <li><Link to="/shipping-policy" className="hover:text-[#161513] transition-colors">Shipping Policy</Link></li>
+              <li><Link to="/returns-policy" className="hover:text-[#161513] transition-colors">Easy Returns & Exchanges</Link></li>
+              <li><Link to="/contact" className="hover:text-[#161513] transition-colors">Contact Support</Link></li>
+              <li><Link to="/admin" className="hover:text-[#161513] transition-colors text-[#827E77]">Admin Portal</Link></li>
             </ul>
           </div>
 
-          {/* Private Gazette / Newsletter */}
+          {/* Newsletter */}
           <div>
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sphere-ink mb-4">The Private Gazette</h4>
-            <p className="text-xs text-sphere-muted mb-4 leading-relaxed">
-              Receive private invitations to seasonal archives and editorial lookbooks.
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#161513] mb-3">Stay Updated</h4>
+            <p className="text-xs text-[#827E77] mb-3 leading-relaxed">
+              Subscribe for exclusive seasonal lookbooks, early sale access, and member updates.
             </p>
             {subscribed ? (
-              <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-2.5 rounded-sm">
+              <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-2.5 rounded">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>You are on the Atelier guestlist.</span>
+                <span>Thank you for subscribing!</span>
               </div>
             ) : (
               <form onSubmit={handleSubscribe} className="space-y-2">
@@ -124,17 +83,17 @@ export default function Footer() {
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-sphere-ivory border border-sphere-border text-xs px-3 py-2.5 rounded-sm text-sphere-ink placeholder-sphere-muted focus:border-sphere-ink focus:outline-none pr-9"
+                    className="w-full bg-white border border-[#EAE5DA] text-xs px-3 py-2 rounded text-[#161513] placeholder-[#827E77] focus:border-[#161513] focus:outline-none pr-9"
                   />
                   <button
                     type="submit"
-                    aria-label="Submit email"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-sphere-charcoal hover:text-sphere-ink"
+                    aria-label="Subscribe"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#4B4843] hover:text-[#161513]"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
-                <p className="text-[10px] text-sphere-muted">We respect your privacy. Unsubscribe anytime.</p>
+                <p className="text-[10px] text-[#827E77]">We respect your privacy. Unsubscribe anytime.</p>
               </form>
             )}
           </div>
@@ -142,15 +101,18 @@ export default function Footer() {
         </div>
 
         {/* Bottom Legal Bar */}
-        <div className="pt-12 mt-12 border-t border-sphere-border flex flex-col sm:flex-row items-center justify-between text-[11px] text-sphere-muted gap-4">
+        <div className="pt-8 mt-8 border-t border-[#EAE5DA] flex flex-col sm:flex-row items-center justify-between text-xs text-[#827E77] gap-4">
           <div>
-            <span>© 2026 ShopSphere Fashion Retail Inc. All rights reserved.</span>
+            <span>© 2026 ShopSphere. All rights reserved.</span>
           </div>
-          <div className="flex items-center gap-6">
-            <Link to="/privacy" className="hover:text-sphere-ink transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-sphere-ink transition-colors">Terms of Service</Link>
-            <span className="text-sphere-sand">•</span>
-            <span>Currency: INR (₹)</span>
+          <div className="flex items-center gap-5 flex-wrap justify-center">
+            <Link to="/privacy" className="hover:text-[#161513] transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-[#161513] transition-colors">Terms of Service</Link>
+            <Link to="/returns-policy" className="hover:text-[#161513] transition-colors">Return Policy</Link>
+            <span className="text-[#C8B293]">•</span>
+            <span className="font-medium text-[#4B4843]">Currency: INR (₹)</span>
+            <span className="text-[#C8B293]">•</span>
+            <span className="font-medium text-[#4B4843]">India First</span>
           </div>
         </div>
       </div>

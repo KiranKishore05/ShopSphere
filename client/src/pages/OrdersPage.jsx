@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, ArrowRight, Clock, AlertCircle, ShoppingBag, Eye } from 'lucide-react';
 import { useMyOrders } from '../hooks/useOrders';
+import SEO from '../components/common/SEO';
 
 export default function OrdersPage() {
   const [page, setPage] = useState(1);
@@ -13,8 +14,8 @@ export default function OrdersPage() {
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-16 text-center animate-fadeIn">
-        <div className="w-10 h-10 border-2 border-sphere-ink/20 border-t-sphere-ink rounded-full animate-spin mx-auto mb-4" />
-        <p className="font-editorial text-lg text-sphere-ink">Retrieving your order archives...</p>
+        <div className="w-10 h-10 border-2 border-[#161513]/20 border-t-[#161513] rounded-full animate-spin mx-auto mb-4" />
+        <p className="font-serif text-lg text-[#161513]">Retrieving your orders...</p>
       </div>
     );
   }
@@ -22,8 +23,8 @@ export default function OrdersPage() {
   if (isError) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center animate-fadeIn">
-        <div className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs inline-flex items-center gap-2 mb-4">
-          <AlertCircle className="w-4 h-4" />
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl inline-flex items-center gap-2 mb-4">
+          <AlertCircle className="w-4 h-4 text-rose-600" />
           <span>{error?.message || 'Failed to load order history.'}</span>
         </div>
       </div>
@@ -31,78 +32,81 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fadeIn">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 animate-fadeIn">
+      <SEO title="My Orders - Order Archives" description="View past orders and tracking on ShopSphere." />
+
       {/* Page Title */}
-      <div className="border-b border-sphere-border pb-6 mb-8 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+      <div className="border-b border-[#EAE5DA] pb-5 mb-8 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
         <div>
-          <h1 className="font-editorial text-3xl sm:text-4xl text-sphere-ink font-normal">
+          <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold text-[#161513]">
             Order Archives
           </h1>
-          <p className="text-xs text-sphere-muted mt-1">
-            Review your historical commissions, tailored acquisitions, and delivery status.
+          <p className="text-xs text-[#827E77] mt-1">
+            Review your order history, delivery tracking, and purchase receipts.
           </p>
         </div>
-        <div className="text-xs text-sphere-muted font-medium">
-          {meta.total || orders.length} {(meta.total || orders.length) === 1 ? 'Acquisition' : 'Acquisitions'}
+        <div className="text-xs text-[#827E77] font-semibold">
+          {meta.total || orders.length} {(meta.total || orders.length) === 1 ? 'Order' : 'Orders'} Placed
         </div>
       </div>
 
       {orders.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-sphere-border shadow-sm p-8">
-          <ShoppingBag className="w-12 h-12 text-sphere-sand mx-auto mb-4" />
-          <h2 className="font-editorial text-2xl text-sphere-ink mb-2">No Past Orders Found</h2>
-          <p className="text-xs text-sphere-muted max-w-sm mx-auto mb-6">
-            You have not placed any orders yet. Discover our latest seasonal designs and elevate your wardrobe.
+        <div className="text-center py-16 sm:py-20 bg-white border border-[#EAE5DA] rounded-2xl shadow-xs p-8">
+          <div className="w-16 h-16 mx-auto rounded-full bg-[#F4EDE4] text-[#161513] flex items-center justify-center mb-4">
+            <ShoppingBag className="w-8 h-8" strokeWidth={1.5} />
+          </div>
+          <h2 className="font-serif text-2xl text-[#161513] font-bold mb-2">No Past Orders Found</h2>
+          <p className="text-xs text-[#827E77] max-w-sm mx-auto mb-6">
+            You have not placed any orders yet. Discover our latest seasonal fashion collections.
           </p>
           <Link
             to="/shop"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-sphere-ink text-sphere-ivory text-xs uppercase tracking-luxury font-medium hover:bg-sphere-charcoal transition-all shadow-luxury"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#161513] text-[#FDFBF7] text-xs uppercase font-semibold tracking-wider rounded-lg hover:bg-[#34302C] transition-all shadow-xs"
           >
             <span>Explore Boutique</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {orders.map((order) => {
-            const isPaid = order.paymentStatus === 'paid';
             return (
               <div
                 key={order._id}
-                className="bg-white border border-sphere-border shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                className="bg-white border border-[#EAE5DA] rounded-2xl shadow-xs hover:shadow-sm transition-shadow overflow-hidden"
               >
                 {/* Order Top Bar */}
-                <div className="p-4 sm:p-5 bg-sphere-ivory/60 border-b border-sphere-border flex flex-wrap items-center justify-between gap-4 text-xs">
+                <div className="p-4 sm:p-5 bg-[#FBF9F5] border-b border-[#EAE5DA] flex flex-wrap items-center justify-between gap-4 text-xs">
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                     <div>
-                      <span className="text-sphere-muted block text-[10px] uppercase tracking-wider">Order Reference</span>
-                      <span className="font-mono font-semibold text-sphere-ink">{order.orderNumber}</span>
+                      <span className="text-[#827E77] block text-[10px] uppercase font-bold tracking-wider">Order Reference</span>
+                      <span className="font-mono font-bold text-[#161513]">{order.orderNumber}</span>
                     </div>
                     <div>
-                      <span className="text-sphere-muted block text-[10px] uppercase tracking-wider">Date Placed</span>
-                      <span>{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="text-[#827E77] block text-[10px] uppercase font-bold tracking-wider">Date Placed</span>
+                      <span className="font-medium text-[#161513]">{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
                     <div>
-                      <span className="text-sphere-muted block text-[10px] uppercase tracking-wider">Total Amount</span>
-                      <span className="font-medium text-sphere-ink">₹{order.total?.toLocaleString('en-IN')}</span>
+                      <span className="text-[#827E77] block text-[10px] uppercase font-bold tracking-wider">Total Amount</span>
+                      <span className="font-bold text-[#161513]">₹{order.total?.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <span
-                      className={`px-2.5 py-1 text-[11px] uppercase tracking-wider font-medium border ${
-                        order.orderStatus === 'confirmed'
+                      className={`px-3 py-1 text-[11px] uppercase tracking-wider font-semibold rounded-lg border ${
+                        order.orderStatus === 'confirmed' || order.orderStatus === 'delivered'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                           : order.orderStatus === 'cancelled'
-                          ? 'bg-red-50 text-red-800 border-red-200'
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
                           : 'bg-amber-50 text-amber-800 border-amber-200'
                       }`}
                     >
-                      {order.orderStatus.replace('_', ' ')}
+                      {order.orderStatus}
                     </span>
                     <Link
                       to={`/account/orders/${order.orderNumber}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-sphere-ink text-sphere-ink hover:bg-sphere-ink hover:text-sphere-ivory text-xs uppercase tracking-luxury font-medium transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#161513] text-[#FDFBF7] text-xs font-semibold rounded-lg hover:bg-[#34302C] transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Details</span>
@@ -110,69 +114,34 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {/* Items Preview */}
-                <div className="p-4 sm:p-5">
-                  <div className="divide-y divide-sphere-border/60">
-                    {order.items?.map((item, idx) => (
-                      <div key={idx} className="py-3 flex items-center gap-4 first:pt-0 last:pb-0">
+                {/* Order Line Items */}
+                <div className="p-4 sm:p-5 divide-y divide-[#F2ECE4]">
+                  {order.items?.map((item, idx) => (
+                    <div key={idx} className="py-3 first:pt-0 last:pb-0 flex items-center gap-4">
+                      <div className="w-12 h-14 rounded-lg bg-[#FBF9F5] border border-[#EAE5DA] overflow-hidden flex items-center justify-center p-1 shrink-0">
                         <img
-                          src={item.image}
+                          src={item.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80'}
                           alt={item.name}
-                          className="w-14 h-16 object-cover bg-sphere-sand-light shrink-0"
+                          className="max-w-full max-h-full w-auto h-auto object-contain object-center"
                         />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-semibold text-sphere-ink truncate">{item.name}</h4>
-                          <p className="text-[11px] text-sphere-muted mt-0.5">
-                            Size: {item.size} • Qty: {item.quantity} • Unit: ₹{item.unitPrice?.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-semibold text-sphere-ink">
-                            ₹{item.lineTotal?.toLocaleString('en-IN')}
-                          </span>
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Order Footer Details */}
-                <div className="px-5 py-3 bg-sphere-sand-light/10 border-t border-sphere-border flex flex-wrap items-center justify-between text-[11px] text-sphere-muted">
-                  <span>
-                    Delivering to: <strong className="text-sphere-charcoal">{order.shippingAddressSnapshot?.city}, {order.shippingAddressSnapshot?.state}</strong>
-                  </span>
-                  <span>
-                    Payment: <strong className="text-sphere-charcoal uppercase">{order.paymentMethod}</strong> ({order.paymentStatus})
-                  </span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-xs sm:text-sm font-bold text-[#161513] truncate">{item.name}</h3>
+                        <p className="text-[11px] text-[#827E77] mt-0.5">
+                          Size: {item.size} • Qty: {item.quantity}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-[#161513]">
+                          ₹{item.lineTotal?.toLocaleString('en-IN') || (item.unitPrice * item.quantity)?.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             );
           })}
-
-          {/* Pagination */}
-          {meta.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 pt-6">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-4 py-2 border border-sphere-border text-xs text-sphere-ink disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <span className="text-xs text-sphere-muted">
-                Page {page} of {meta.totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= meta.totalPages}
-                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                className="px-4 py-2 border border-sphere-border text-xs text-sphere-ink disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

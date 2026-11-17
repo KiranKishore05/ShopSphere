@@ -13,7 +13,9 @@ const addressSchema = z.object({
   apartment: z.string().trim().max(100).optional().default(''),
   city: z.string().trim().min(2, 'City is required').max(100),
   state: z.string().trim().min(2, 'State / Province is required').max(100),
-  postalCode: z.string().trim().min(3, 'Postal code is required').max(12),
+  postalCode: z.string().trim()
+    .min(1, 'Postal code is required')
+    .regex(/^[1-9][0-9]{5}$/, 'Postal code must be a valid 6-digit Indian PIN code (e.g. 400050)'),
   country: z.string().trim().min(2).max(60).default('India'),
   isDefault: z.boolean().optional().default(false)
 });

@@ -58,5 +58,5 @@ const InventoryMovementSchema = new mongoose.Schema({
   timestamps: { createdAt: true, updatedAt: false }
 });
 
-export const InventoryMovement = mongoose.model('InventoryMovement', InventoryMovementSchema);
+export const InventoryMovement = mongoose.models.InventoryMovement || mongoose.model('InventoryMovement', InventoryMovementSchema);
 export default InventoryMovement;

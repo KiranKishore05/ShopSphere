@@ -18,9 +18,58 @@ import {
   Search,
   Bell,
   Mail,
-  User
+  User,
+  Users,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+
+class AdminErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('Admin Module Runtime Error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-white border border-rose-200 rounded-sm shadow-xs text-center max-w-xl mx-auto my-12 animate-fadeIn">
+          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center mx-auto mb-3 border border-rose-200">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h2 className="font-editorial text-xl text-sphere-ink mb-1">Administrative Module Error</h2>
+          <p className="text-xs text-[#827E77] mb-6 max-w-md mx-auto leading-relaxed">
+            {this.state.error?.message || 'An unexpected rendering error occurred in this administrative view.'}
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#161513] text-[#FDFBF7] text-xs uppercase tracking-wider font-semibold rounded-sm hover:bg-[#34302C] transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 border border-[#EAE5DA] text-xs uppercase tracking-wider font-semibold text-sphere-ink rounded-sm hover:bg-[#FAF8F5] transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,11 +94,12 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { label: 'Overview', to: '/admin', icon: LayoutDashboard, exact: true },
-    { label: 'Garments', to: '/admin/products', icon: Shirt },
+    { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, exact: true },
+    { label: 'Products', to: '/admin/products', icon: Shirt },
     { label: 'Categories', to: '/admin/categories', icon: FolderTree },
+    { label: 'Orders', to: '/admin/orders', icon: ShoppingBag },
+    { label: 'Customers', to: '/admin/customers', icon: Users },
     { label: 'Inventory', to: '/admin/inventory', icon: Boxes },
-    { label: 'Fulfillment', to: '/admin/orders', icon: ShoppingBag },
     { label: 'Coupons', to: '/admin/coupons', icon: TicketPercent },
     { label: 'Reviews', to: '/admin/reviews', icon: MessageSquare },
     { label: 'Analytics', to: '/admin/analytics', icon: BarChart3 }
@@ -58,7 +108,7 @@ export default function AdminLayout() {
   const currentSection =
     navItems.find((item) =>
       item.exact ? location.pathname === item.to : location.pathname.startsWith(item.to)
-    )?.label || 'Overview';
+    )?.label || 'Dashboard';
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col md:flex-row text-sphere-ink font-sans antialiased selection:bg-[#EAE5DA]">
@@ -95,21 +145,26 @@ export default function AdminLayout() {
       >
         <div className="flex flex-col flex-1 overflow-y-auto">
           {/* Brand Header */}
-          <div className="p-6 border-b border-[#2A2723]">
-            <Link to="/admin" className="block group">
-              <span className="font-editorial text-2xl tracking-[0.2em] uppercase text-[#FDFBF7] group-hover:text-sphere-sand transition-colors block">
-                SHOPSPHERE
-              </span>
-              <span className="text-[9px] tracking-[0.35em] uppercase text-[#8E877F] font-sans block mt-0.5">
-                Atelier Administration
-              </span>
+          <div className="p-5 border-b border-[#2A2723]">
+            <Link to="/admin" className="flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-lg bg-white text-[#161513] flex items-center justify-center font-bold shadow-xs">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-serif text-lg font-bold tracking-tight text-[#FDFBF7] block leading-tight">
+                  ShopSphere
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-[#8E877F] font-semibold block">
+                  Admin Console
+                </span>
+              </div>
             </Link>
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1">
-            <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-[#736E67] font-semibold">
-              Management Modules
+          <nav className="p-3.5 space-y-1">
+            <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-[#736E67] font-bold">
+              Business Operations
             </div>
 
             {navItems.map((item) => {
@@ -124,13 +179,13 @@ export default function AdminLayout() {
                   to={item.to}
                   end={item.exact}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-sm text-xs tracking-wider transition-colors font-medium ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs tracking-wider transition-all font-semibold ${
                     isActive
-                      ? 'bg-sphere-sand text-[#161513] font-semibold shadow-sm'
+                      ? 'bg-[#6366F1] text-white shadow-xs'
                       : 'text-[#B8B2A9] hover:text-[#FDFBF7] hover:bg-[#23201C]'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#161513]' : 'text-[#8E877F]'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#8E877F]'}`} />
                   <span>{item.label}</span>
                 </NavLink>
               );
@@ -256,7 +311,9 @@ export default function AdminLayout() {
 
         {/* Page Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
+          <AdminErrorBoundary>
+            <Outlet />
+          </AdminErrorBoundary>
         </main>
       </div>
     </div>

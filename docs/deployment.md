@@ -81,7 +81,43 @@ CLOUDINARY_API_SECRET=placeholder_api_secret
 
 # Initial Store Administrator Bootstrap (Executed via secure CLI script only)
 ADMIN_BOOTSTRAP_KEY=secure_one_time_bootstrap_token
+
+# Transactional Email Infrastructure (Phase 9 Stage 3)
+EMAIL_PROVIDER=mock
+EMAIL_FROM_ADDRESS=orders@shopsphere.in
+EMAIL_FROM_NAME=ShopSphere
+EMAIL_SUPPORT_ADDRESS=support@shopsphere.in
+ADMIN_NOTIFICATION_EMAIL=admin@shopsphere.in
+BREVO_API_KEY=xkeysib-placeholder-brevo-api-key
+EMAIL_TOKEN_SECRET=your_32_character_email_token_secret_key_here
+EMAIL_WORKER_ENABLED=true
+EMAIL_MAX_RETRIES=5
+EMAIL_RETRY_DELAY_MS=1000
+EMAIL_POLL_INTERVAL_MS=10000
+EMAIL_BATCH_SIZE=5
+EMAIL_PROCESSING_LEASE_MS=300000
 ```
+
+### 2.3 Production Environment Security Rules & Secret Generation
+1. **Secret Generation Standard:**
+   Production `JWT_SECRET`, `COOKIE_SECRET`, and `EMAIL_TOKEN_SECRET` must each be a minimum of 32 cryptographically random characters:
+   ```bash
+   # Generate 64-character hexadecimal key:
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   # or with OpenSSL:
+   openssl rand -hex 32
+   ```
+2. **Production Startup Validation (`server/src/config/env.js`):**
+   * When `NODE_ENV === 'production'`, the server verifies `JWT_SECRET`, `COOKIE_SECRET`, `EMAIL_TOKEN_SECRET`, and `MONGODB_URI` without fallback defaults.
+   * If any secret is missing, less than 32 characters, contains `dev_` or `placeholder`, or if `MONGODB_URI` points to `localhost`, startup is aborted immediately with a sanitized error.
+   * When `NODE_ENV === 'production'`, `EMAIL_PROVIDER` must be set to `'brevo'` (the `'mock'` adapter is strictly prohibited in production), and a non-empty `BREVO_API_KEY` must be configured.
+3. **Session Cookie Security Policy:**
+   * In production (`NODE_ENV === 'production'`), authentication cookies are issued with:
+     * `httpOnly: true` (prevents client JavaScript / XSS access).
+     * `secure: true` (requires HTTPS transmission).
+     * `sameSite: 'none'` (permits cross-subdomain API calls between Vercel and Render).
+     * `path: '/'` with explicit `maxAge: 7 days`.
+   * On logout, cookies are expired immediately via `maxAge: 0` and `expires: new Date(0)`.
 
 ---
 
@@ -102,7 +138,7 @@ ADMIN_BOOTSTRAP_KEY=secure_one_time_bootstrap_token
 3. Build command: `npm run build`.
 4. Output directory: `dist`.
 5. Single-Page Application (SPA) routing fallback:
-   Create `client/vercel.json`:
+   Configured in `client/vercel.json`:
    ```json
    {
      "rewrites": [
@@ -110,6 +146,7 @@ ADMIN_BOOTSTRAP_KEY=secure_one_time_bootstrap_token
      ]
    }
    ```
+   Ensures deep links (`/shop`, `/account/orders`, `/admin/*`) resolve to `/index.html` without 404 errors.
 6. Set environment variables (`VITE_API_BASE_URL`, `VITE_RAZORPAY_KEY_ID`, `VITE_CLOUDINARY_CLOUD_NAME`).
 
 ---
@@ -120,8 +157,15 @@ ADMIN_BOOTSTRAP_KEY=secure_one_time_bootstrap_token
 3. Build command: `npm install`.
 4. Start command: `node src/server.js`.
 5. Health check path: `/api/v1/health`.
-6. Configure all backend environment variables in Render Dashboard Secret Store.
-7. Ensure `SameSite: 'none'` and `Secure: true` are enabled when frontend and backend reside on separate subdomains.
+6. Infrastructure as Code: Root `render.yaml` blueprint defines the web service, build/start commands, and environment variable references.
+7. Reverse Proxy & Rate Limiting: `app.set('trust proxy', 1)` is enabled by default to ensure Express and `express-rate-limit` read real client IPs through Render's reverse proxy/load balancer rather than internal proxy IPs.
+8. CORS Multi-Origin Policy:
+   - Configured via `CLIENT_ORIGIN` and `ALLOWED_ORIGINS` (comma-separated).
+   - Strict pattern support for project Vercel previews: `^https:\/\/shopsphere(-[a-zA-Z0-9_-]+)*\.vercel\.app$`.
+   - Local dev origins (`http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:4173`) are preserved.
+   - Non-matching external origins are safely rejected without throwing 500 errors.
+9. Configure all backend environment variables in Render Dashboard Secret Store.
+10. Ensure `SameSite: 'none'` and `Secure: true` are enabled when frontend and backend reside on separate subdomains.
 
 ---
 
@@ -129,7 +173,7 @@ ADMIN_BOOTSTRAP_KEY=secure_one_time_bootstrap_token
 Before transitioning Razorpay from `test` mode to `live` mode:
 1. Verify business KYC and bank account activation in Razorpay Dashboard.
 2. Switch `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` to Live API Keys.
-3. Configure the live Webhook URL in Razorpay Dashboard pointing to `https://api.shopsphere.com/api/v1/webhooks/razorpay` with event `payment.captured`.
+3. Configure the live Webhook URL in Razorpay Dashboard pointing to `https://api.shopsphere.com/api/v1/payments/webhook` with events `payment.captured`, `order.paid`, and `payment.failed`.
 4. Execute an end-to-end transaction with an actual payment method; verify receipt and immediate refund.
 
 ---
@@ -199,3 +243,73 @@ Before transitioning Razorpay from `test` mode to `live` mode:
 * **Production Recommendation for Phase 9 / Scale:**
   1. **Edge Dynamic Prerendering:** Deploy edge middleware (e.g. Cloudflare Worker or Vercel Edge Middleware) using Prerender.io or Puppeteer to detect bot user-agents (`googlebot`, `facebookexternalhit`, `twitterbot`) and serve a cached, pre-rendered static HTML snapshot.
   2. **Migration to SSR / Hybrid Framework:** If high-velocity search indexing across thousands of seasonal garment SKUs is required, consider evaluating a migration to Remix or Next.js for server-rendered product and collection pages while maintaining the current API and design system.
+
+---
+
+## 10. Transactional Email System Production Deployment & DNS Setup Guide
+
+### 10.1 Backend Environment Variables for Render
+
+The transactional email engine is configured through environment variables in the Render Dashboard Secret Store.
+
+#### Required Production Variables
+| Variable Name | Production Validation Rule | Source / Description |
+| :--- | :--- | :--- |
+| `EMAIL_PROVIDER` | Must be strictly `'brevo'`. `'mock'` is prohibited in production. | Render Dashboard setting. |
+| `BREVO_API_KEY` | Required, non-empty, cannot be placeholder (`xkeysib-...`). | Brevo Dashboard -> SMTP & API -> API Keys. |
+| `EMAIL_TOKEN_SECRET` | Required, min 32 characters, no `dev_` or `placeholder`. | Generated via `openssl rand -hex 32` or Node crypto. Used for AES-256-GCM encryption of in-flight tokens. |
+| `EMAIL_FROM_ADDRESS` | Valid email format (e.g. `orders@shopsphere.in`). | Verified sender domain in Brevo. |
+| `EMAIL_SUPPORT_ADDRESS` | Valid email format (e.g. `support@shopsphere.in`). | Concierge support mailbox in email templates. |
+
+#### Optional Operational Variables
+| Variable Name | Default Value | Description |
+| :--- | :--- | :--- |
+| `EMAIL_FROM_NAME` | `ShopSphere` | Sender display name shown in email client inboxes. |
+| `ADMIN_NOTIFICATION_EMAIL` | `""` (Empty string) | Administrative operational alerts recipient. If empty, admin alerts are safely bypassed without error. |
+| `EMAIL_WORKER_ENABLED` | `true` | Enables background in-process outbox polling worker. |
+| `EMAIL_MAX_RETRIES` | `5` | Maximum retry threshold before permanent dead-lettering. |
+| `EMAIL_RETRY_DELAY_MS` | `1000` | Base delay for exponential backoff calculations ($1\text{s} \times 2^{\text{attempts}}$). |
+| `EMAIL_POLL_INTERVAL_MS`| `10000` | Background worker polling interval (10 seconds). |
+| `EMAIL_BATCH_SIZE` | `5` | Maximum number of outbox documents claimed per poll cycle. |
+| `EMAIL_PROCESSING_LEASE_MS`| `300000` | Crash recovery lease duration (5 minutes). |
+
+### 10.2 MongoDB Atlas Prerequisites
+Before routing production traffic to the email outbox:
+1. Ensure the `emailoutboxes` collection has its compound worker index built:
+   ```javascript
+   db.emailoutboxes.createIndex({ status: 1, nextAttemptAt: 1, processingLeaseExpiresAt: 1 });
+   db.emailoutboxes.createIndex({ eventKey: 1 }, { unique: true });
+   db.emailoutboxes.createIndex({ recipient: 1, createdAt: -1 });
+   ```
+2. Verify read/write permissions for the Render database user on `shopsphere.emailoutboxes`.
+
+### 10.3 Domain Authentication DNS Configuration (SPF, DKIM, DMARC)
+To ensure reliable inbox delivery and prevent emails sent from `@shopsphere.in` from landing in spam or quarantine folders, the following DNS records must be created at the domain registrar / DNS provider (e.g., Cloudflare, Route53, Namecheap):
+
+1. **SPF (Sender Policy Framework)**:
+   - **Type**: `TXT`
+   - **Host / Name**: `@` (or `shopsphere.in`)
+   - **Value**: `v=spf1 include:spf.brevo.com ~all`
+   - *Purpose*: Authorizes Brevo mail servers to deliver messages originating from `@shopsphere.in`.
+
+2. **DKIM (DomainKeys Identified Mail)**:
+   - **Type**: `TXT`
+   - **Host / Name**: `mail._domainkey` (or selector provided in Brevo Dashboard)
+   - **Value**: `k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQ...` *(Obtain exact public key string from Brevo Dashboard)*
+   - *Purpose*: Cryptographically signs outbound emails to verify they were not altered in transit.
+
+3. **DMARC (Domain-based Message Authentication, Reporting & Conformance)**:
+   - **Type**: `TXT`
+   - **Host / Name**: `_dmarc`
+   - **Value**: `v=DMARC1; p=none; rua=mailto:dmarc-reports@shopsphere.in`
+   - *Purpose*: Instructs receiving servers on handling unaligned messages and requests deliverability telemetry.
+
+### 10.4 Pre-Activation Testing Checklist
+Before switching `EMAIL_PROVIDER=brevo` on production Render:
+- [ ] Domain status in Brevo Dashboard displays **"Authenticated"** with green checkmarks for SPF and DKIM.
+- [ ] Test transactional email dispatched from Brevo Dashboard to an external Gmail and Apple Mail inbox; verify SPF and DKIM alignment (`Authentication-Results: spf=pass, dkim=pass`).
+- [ ] Verify `EMAIL_TOKEN_SECRET` in Render Secret Store is $\ge 32$ random characters.
+- [ ] Verify `BREVO_API_KEY` is saved and valid.
+- [ ] Trigger a test customer registration and inspect MongoDB Atlas outbox: verify status transitions from `pending` -> `processing` -> `sent` with a recorded `providerMessageId`.
+- [ ] Verify password reset token scrub: verify that `encryptedTokenPayload` is `$unset` from `templateData` upon delivery confirmation.
+

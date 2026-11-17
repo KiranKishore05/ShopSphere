@@ -5,9 +5,14 @@ import api from '../lib/axios';
  * Encapsulates all administrative backend calls to /api/v1/admin/*
  */
 
-// ---------------- ANALYTICS ----------------
+// ---------------- ANALYTICS & DASHBOARD ----------------
 export const fetchAdminAnalytics = async (params = {}) => {
   const res = await api.get('/admin/analytics/summary', { params });
+  return res.data?.analytics || res.data || res;
+};
+
+export const fetchAdminDashboard = async (params = {}) => {
+  const res = await api.get('/admin/dashboard', { params });
   return res.data?.analytics || res.data || res;
 };
 
@@ -43,9 +48,14 @@ export const uploadAdminProductImage = async (data) => {
 };
 
 // ---------------- CATEGORIES ----------------
-export const fetchAdminCategories = async () => {
-  const res = await api.get('/admin/categories');
+export const fetchAdminCategories = async (params = {}) => {
+  const res = await api.get('/admin/categories', { params });
   return res.data?.categories || res.data || res;
+};
+
+export const fetchAdminCategoryById = async (id) => {
+  const res = await api.get(`/admin/categories/${id}`);
+  return res.data?.category || res.data || res;
 };
 
 export const createAdminCategory = async (data) => {
@@ -96,9 +106,9 @@ export const updateAdminOrderStatus = async (id, payload) => {
 };
 
 // ---------------- COUPONS ----------------
-export const fetchAdminCoupons = async () => {
-  const res = await api.get('/admin/coupons');
-  return res.data?.coupons || res.data || res;
+export const fetchAdminCoupons = async (params = {}) => {
+  const res = await api.get('/admin/coupons', { params });
+  return res.data || res;
 };
 
 export const fetchAdminCouponById = async (id) => {
@@ -118,5 +128,21 @@ export const updateAdminCoupon = async (id, data) => {
 
 export const deleteAdminCoupon = async (id) => {
   const res = await api.delete(`/admin/coupons/${id}`);
+  return res.data || res;
+};
+
+// ---------------- CUSTOMERS ----------------
+export const fetchAdminCustomers = async (params = {}) => {
+  const res = await api.get('/admin/customers', { params });
+  return res.data || res;
+};
+
+export const fetchAdminCustomerById = async (id) => {
+  const res = await api.get(`/admin/customers/${id}`);
+  return res.data || res;
+};
+
+export const updateAdminCustomerStatus = async (id, payload) => {
+  const res = await api.patch(`/admin/customers/${id}/status`, payload);
   return res.data || res;
 };

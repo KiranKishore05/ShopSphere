@@ -1,323 +1,453 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, SlidersHorizontal, ChevronRight, Check } from 'lucide-react';
-import HealthStatusBadge from '../components/common/HealthStatusBadge';
+import { useQuery } from '@tanstack/react-query';
+import { 
+  ArrowRight, 
+  ChevronLeft, 
+  ChevronRight, 
+  Truck, 
+  RotateCcw, 
+  ShieldCheck, 
+  Headphones 
+} from 'lucide-react';
 import SEO from '../components/common/SEO';
+import ProductCard from '../components/products/ProductCard';
+import { fetchProducts } from '../services/catalogService';
 
 export default function HomePage() {
-  const featuredCollections = [
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [promoImage, setPromoImage] = useState('/images/promo-banner.jpg');
+  const touchStartXRef = useRef(0);
+  const touchEndXRef = useRef(0);
+
+  const handlePromoImageError = () => {
+    if (promoImage !== 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&q=85') {
+      setPromoImage('https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&q=85');
+    }
+  };
+
+  // High-resolution hero slides (Women, Men, Kids)
+  const heroSlides = [
     {
-      title: 'Architectural Outerwear',
-      tagline: 'Sculpted wool & cashmere double-breasted overcoats',
-      image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=900&q=80',
-      href: '/category/outerwear',
-      count: 'Archive'
+      id: 'women',
+      category: 'WOMEN',
+      eyebrow: 'MODERN FASHION COLLECTION',
+      heading: 'Timeless Elegance in Every Saree',
+      subtitle: 'Discover sarees and graceful ethnic wear for every occasion.',
+      ctaText: 'Shop Now',
+      ctaLink: '/shop?gender=women',
+      image: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=1200&q=85',
+      alt: "ShopSphere Women's Fashion Campaign"
     },
     {
-      title: 'Tactile Knitwear',
-      tagline: '7-gauge Mongolian cashmere & brushed alpaca',
-      image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=900&q=80',
-      href: '/category/knitwear',
-      count: 'Archive'
+      id: 'men',
+      category: 'MEN',
+      eyebrow: 'MODERN FASHION COLLECTION',
+      heading: 'Heritage Meets Modern Style',
+      subtitle: 'Explore kurtas, sherwanis and refined traditional menswear.',
+      ctaText: 'Shop Now',
+      ctaLink: '/shop?gender=men',
+      image: 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=1200&q=85',
+      alt: "ShopSphere Men's Fashion Campaign"
     },
     {
-      title: 'Bespoke Tailoring',
-      tagline: 'Fluid pleated trousers and unstructured blazers',
-      image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=900&q=80',
-      href: '/category/tailoring',
-      count: 'Archive'
-    },
-    {
-      title: 'Minimal Accessories',
-      tagline: 'Full-grain Italian vegetable tanned leather goods',
-      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=900&q=80',
-      href: '/category/accessories',
-      count: 'Archive'
+      id: 'kids',
+      category: 'KIDS',
+      eyebrow: 'MODERN FASHION COLLECTION',
+      heading: 'Little Festive Traditions',
+      subtitle: 'Celebrate every special moment with beautiful kids ethnic wear.',
+      ctaText: 'Shop Now',
+      ctaLink: '/shop?gender=kids',
+      image: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=1200&q=85',
+      alt: "ShopSphere Kids' Fashion Campaign"
     }
   ];
 
-  const showcaseProducts = [
+  // 5-second autoplay timer with hover pause & resume
+  useEffect(() => {
+    if (isPaused) return;
+
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [isPaused, activeSlide, heroSlides.length]);
+
+  const handlePrevSlide = () => {
+    setActiveSlide((prev) => (prev > 0 ? prev - 1 : heroSlides.length - 1));
+  };
+
+  const handleNextSlide = () => {
+    setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+  };
+
+  // Mobile touch swipe handling
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e) => {
+    touchEndXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartXRef.current || !touchEndXRef.current) return;
+    const distance = touchStartXRef.current - touchEndXRef.current;
+    if (distance > 40) {
+      handleNextSlide();
+    } else if (distance < -40) {
+      handlePrevSlide();
+    }
+    touchStartXRef.current = 0;
+    touchEndXRef.current = 0;
+  };
+
+  // High-resolution fallback products matching backend catalogue
+  const fallbackProducts = [
     {
       id: 'prod-1',
-      name: 'Double-Faced Cashmere Trench Coat',
-      slug: 'double-faced-cashmere-trench-coat',
-      category: 'Outerwear',
-      price: 18999,
-      comparePrice: 24999,
-      image: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
-      colors: ['#C8B293', '#161513', '#788A75'],
-      sizes: ['S', 'M', 'L', 'XL'],
-      badge: 'ARCHIVE EXCLUSIVE'
+      _id: '674f00010000000000000001',
+      name: "Men's Casual Shirt",
+      slug: 'mens-linen-casual-shirt',
+      price: 1299,
+      comparePrice: 1899,
+      rating: 4.5,
+      reviewCount: 128,
+      image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80'
     },
     {
       id: 'prod-2',
-      name: 'Ribbed Alpaca Mockneck Sweater',
-      slug: 'ribbed-alpaca-mockneck-sweater',
-      category: 'Knitwear',
-      price: 8499,
-      comparePrice: null,
-      image: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=800&q=80',
-      colors: ['#F7F4EC', '#4B4843'],
-      sizes: ['XS', 'S', 'M', 'L'],
-      badge: 'NEW ARRIVAL'
+      _id: '674f00010000000000000002',
+      name: "Women's Floral Dress",
+      slug: 'womens-floral-tiered-midi-dress',
+      price: 1699,
+      comparePrice: 2499,
+      rating: 4.6,
+      reviewCount: 97,
+      image: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80'
     },
     {
       id: 'prod-3',
-      name: 'Relaxed Wide-Leg Wool Trousers',
-      slug: 'relaxed-wide-leg-wool-trousers',
-      category: 'Tailoring',
-      price: 7999,
-      comparePrice: 9999,
-      image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80',
-      colors: ['#161513', '#827E77'],
-      sizes: ['28', '30', '32', '34'],
-      badge: 'LIMITED RUN'
+      _id: '674f00010000000000000003',
+      name: "Kids Hoodie",
+      slug: 'kids-denim-dungaree-set',
+      price: 899,
+      comparePrice: 1299,
+      rating: 4.4,
+      reviewCount: 64,
+      image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80'
     },
     {
       id: 'prod-4',
-      name: 'Unstructured Linen-Silk Over-Shirt',
-      slug: 'unstructured-linen-silk-over-shirt',
-      category: 'Shirting',
-      price: 6499,
-      comparePrice: null,
-      image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80',
-      colors: ['#C8B293', '#F7F4EC'],
-      sizes: ['S', 'M', 'L'],
-      badge: 'BESTSELLER'
+      _id: '674f00010000000000000004',
+      name: "Men's Denim Jacket",
+      slug: 'mens-vintage-denim-trucker-jacket',
+      price: 2199,
+      comparePrice: 3299,
+      rating: 4.5,
+      reviewCount: 72,
+      image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=800&q=80'
     }
   ];
 
+  // Fetch real products from the backend API
+  const { data: apiData } = useQuery({
+    queryKey: ['homepage-new-arrivals'],
+    queryFn: () => fetchProducts({ limit: 4, sort: 'newest' }),
+    staleTime: 60 * 1000,
+    retry: 1
+  });
+
+  const apiProducts = apiData?.products || apiData?.data?.products || [];
+  const displayProducts = apiProducts.length >= 4 ? apiProducts.slice(0, 4) : fallbackProducts;
+
   return (
-    <div>
+    <div className="bg-[#FFFFFF] text-[#161513]">
       <SEO
-        title="Haute & Prêt-à-Porter Atelier"
-        description="ShopSphere — Artisanal luxury fashion atelier featuring architectural outerwear, tactile knitwear, bespoke tailoring, and leather accessories."
+        title="ShopSphere — A Premium Fashion E-Commerce Brand"
+        description="ShopSphere is India's premium fashion destination for Men, Women, and Kids. Contemporary styling, quality fabrics, and effortless shopping across India."
       />
 
-      {/* Editorial Hero Banner */}
-      <section className="relative overflow-hidden border-b border-sphere-border bg-sphere-cream">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            
-            {/* Hero Copy */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-sphere-ivory border border-sphere-border rounded-full text-[11px] font-medium tracking-[0.16em] uppercase text-sphere-sand-dark">
-                <Sparkles className="w-3 h-3" />
-                <span>AUTUMN / WINTER 2026 EDITORIAL</span>
-              </div>
+      {/* 1. Hero Campaign Carousel Section (Men -> Women -> Kids) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-4">
+        <div 
+          className="relative rounded-2xl border border-[#EAE5DA] bg-[#FBEBDC] overflow-hidden shadow-xs min-h-[460px] sm:min-h-[480px] lg:min-h-[500px]"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {heroSlides.map((slide, idx) => {
+            const isActive = activeSlide === idx;
+            return (
+              <div
+                key={slide.id}
+                className={`absolute inset-0 grid grid-cols-1 lg:grid-cols-12 items-center transition-all duration-700 ease-in-out ${
+                  isActive 
+                    ? 'opacity-100 pointer-events-auto z-10 translate-x-0' 
+                    : 'opacity-0 pointer-events-none -translate-x-4'
+                }`}
+                aria-hidden={!isActive}
+              >
+                {/* Left Column: Hero Text */}
+                <div className="lg:col-span-5 p-7 sm:p-12 lg:p-16 flex flex-col justify-center items-start z-10">
+                  <span className="text-xs sm:text-sm font-semibold tracking-wider text-[#827E77] uppercase mb-3 block">
+                    {slide.eyebrow}
+                  </span>
 
-              <h1 className="font-editorial text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-sphere-ink leading-[1.08]">
-                The Architecture <br />
-                <span className="italic font-light">of Pure Form.</span>
-              </h1>
+                  <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-normal text-[#161513] tracking-tight leading-[1.12] mb-3">
+                    {slide.heading}
+                  </h1>
 
-              <p className="text-sphere-charcoal text-base sm:text-lg max-w-xl font-light leading-relaxed">
-                Sculptural silhouettes engineered in double-faced cashmere, unbleached Irish linen, and certified regenerative wool. An exploration of permanence in modern dress.
-              </p>
+                  <p className="text-sm sm:text-base font-medium text-[#4B4843] mb-8">
+                    {slide.subtitle}
+                  </p>
 
-              <div className="flex flex-wrap items-center gap-4 pt-4">
-                <Link
-                  to="/shop"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-sphere-ink text-sphere-ivory text-xs font-semibold tracking-[0.14em] uppercase hover:bg-sphere-charcoal transition-all shadow-editorial-md group"
-                >
-                  <span>EXPLORE THE COLLECTION</span>
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Link>
-
-                <Link
-                  to="/shop?gender=women"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-transparent border border-sphere-ink/30 text-sphere-ink text-xs font-semibold tracking-[0.14em] uppercase hover:bg-sphere-ivory hover:border-sphere-ink transition-all"
-                >
-                  <span>WOMEN'S ATELIER</span>
-                </Link>
-              </div>
-
-              {/* Subtext markers */}
-              <div className="pt-8 border-t border-sphere-border/70 flex items-center gap-8 text-xs text-sphere-muted">
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sphere-sage-dark" />
-                  <span>Conscious Sourcing</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sphere-sage-dark" />
-                  <span>Complimentary Tailoring</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sphere-sage-dark" />
-                  <span>Insured Courier</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero Image Showcase */}
-            <div className="lg:col-span-5 relative">
-              <div className="relative mx-auto max-w-md lg:max-w-none">
-                <div className="absolute inset-0 border border-sphere-sand/40 translate-x-3 translate-y-3 pointer-events-none rounded-sm hidden sm:block"></div>
-                
-                <div className="relative bg-sphere-surface p-2.5 shadow-editorial-lg rounded-sm border border-sphere-border overflow-hidden">
-                  <img
-                    src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=85"
-                    alt="ShopSphere Autumn Winter 2026 Editorial"
-                    className="w-full h-[480px] sm:h-[560px] object-cover object-top hover:scale-105 transition-transform duration-700 ease-out"
-                  />
-                  
-                  {/* Floating Lookbook Card */}
-                  <div className="absolute bottom-6 left-6 right-6 bg-sphere-ivory/95 backdrop-blur-md p-4 border border-sphere-border shadow-editorial-md flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-luxury text-sphere-muted block">Look 04 / 32</span>
-                      <h4 className="font-editorial text-sm font-medium text-sphere-ink">Double-Breasted Wool Coat</h4>
-                      <span className="text-xs font-semibold text-sphere-charcoal">₹18,999 INR</span>
-                    </div>
+                  <div>
                     <Link
-                      to="/products/double-faced-cashmere-trench-coat"
-                      className="w-9 h-9 rounded-full bg-sphere-ink text-sphere-ivory flex items-center justify-center hover:bg-sphere-charcoal transition-colors"
-                      aria-label="View Product"
+                      to={slide.ctaLink}
+                      className="inline-flex items-center gap-2 bg-[#161513] text-[#FDFBF7] px-7 py-3 rounded-lg text-sm font-medium hover:bg-[#34302C] active:scale-95 transition-all shadow-md group"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <span>{slide.ctaText}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </Link>
                   </div>
                 </div>
-              </div>
-            </div>
 
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Collections Gallery */}
-      <section className="py-20 lg:py-24 border-b border-sphere-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.2em] text-sphere-sand-dark font-semibold block mb-2">
-                CURATED ARCHIVES
-              </span>
-              <h2 className="font-editorial text-3xl sm:text-4xl text-sphere-ink">
-                Seasonal Collections
-              </h2>
-            </div>
-            <Link
-              to="/shop"
-              className="text-xs font-semibold uppercase tracking-[0.15em] text-sphere-ink hover:text-sphere-sand transition-colors inline-flex items-center gap-1.5"
-            >
-              <span>VIEW ALL ARCHIVES</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredCollections.map((col, idx) => (
-              <Link
-                key={idx}
-                to={col.href}
-                className="group relative bg-sphere-cream border border-sphere-border overflow-hidden rounded-sm flex flex-col transition-all hover:shadow-editorial-md"
-              >
-                <div className="aspect-[3/4] overflow-hidden relative">
+                {/* Right Column: Hero Visual Photography */}
+                <div className="lg:col-span-7 relative h-[280px] sm:h-[380px] lg:h-[500px] w-full overflow-hidden flex items-end justify-center lg:justify-end">
                   <img
-                    src={col.image}
-                    alt={col.title}
-                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+                    src={slide.image}
+                    alt={slide.alt}
+                    className="w-full h-full object-cover object-top transition-transform duration-700 ease-out hover:scale-102"
                   />
-                  <div className="absolute top-3 left-3 bg-sphere-ivory/90 backdrop-blur-sm px-2.5 py-1 text-[10px] uppercase font-semibold tracking-wider text-sphere-ink border border-sphere-border/50">
-                    {col.count}
-                  </div>
-                </div>
-
-                <div className="p-5 flex-1 flex flex-col justify-between bg-sphere-surface">
-                  <div>
-                    <h3 className="font-editorial text-lg text-sphere-ink group-hover:text-sphere-sand-dark transition-colors">
-                      {col.title}
-                    </h3>
-                    <p className="text-xs text-sphere-muted mt-1 leading-relaxed">
-                      {col.tagline}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-sphere-border flex items-center justify-between text-xs text-sphere-charcoal font-medium">
-                    <span>Explore Archive</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-sphere-sand group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-        </div>
-      </section>
-
-      {/* Featured Products Matrix Showcase */}
-      <section className="py-20 lg:py-24 bg-sphere-cream/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.2em] text-sphere-sand-dark font-semibold block mb-2">
-                ICONIC SILHOUETTES
-              </span>
-              <h2 className="font-editorial text-3xl sm:text-4xl text-sphere-ink">
-                Selected Garments
-              </h2>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-sphere-charcoal">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-sphere-sand" />
-              <span>Sizes XS through XL • Limited Edition Runs</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {showcaseProducts.map((product) => (
-              <div
-                key={product.id}
-                className="bg-sphere-surface border border-sphere-border rounded-sm overflow-hidden flex flex-col group hover:shadow-editorial-md transition-shadow"
-              >
-                <div className="aspect-[3/4] overflow-hidden relative bg-sphere-cream">
-                  <Link to={`/products/${product.slug}`}>
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
-                    />
-                  </Link>
-                  <div className="absolute top-3 left-3 bg-sphere-ink text-sphere-ivory text-[9px] font-bold tracking-luxury uppercase px-2 py-1">
-                    {product.badge}
-                  </div>
-                </div>
-
-                <div className="p-4 flex-1 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase tracking-wider text-sphere-muted block mb-1">
-                      {product.category}
-                    </span>
-                    <h4 className="font-editorial text-base text-sphere-ink line-clamp-1 group-hover:text-sphere-sand-dark transition-colors">
-                      <Link to={`/products/${product.slug}`}>{product.name}</Link>
-                    </h4>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-sphere-border flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      {product.colors.map((hex, i) => (
-                        <span
-                          key={i}
-                          className="w-3 h-3 rounded-full border border-sphere-border"
-                          style={{ backgroundColor: hex }}
-                          title={hex}
-                        />
-                      ))}
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-semibold text-sphere-ink">
-                        ₹{product.price.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t lg:bg-gradient-to-r from-[#FBEBDC] via-transparent to-transparent opacity-60 pointer-events-none" />
                 </div>
               </div>
+            );
+          })}
+
+          {/* Three Clickable Slide Indicators */}
+          <div className="absolute bottom-6 left-7 sm:left-12 lg:left-16 z-20 flex items-center gap-2">
+            {heroSlides.map((slide, idx) => (
+              <button
+                key={slide.id}
+                onClick={() => setActiveSlide(idx)}
+                aria-label={`Go to ${slide.category} slide`}
+                className={`h-2.5 rounded-full transition-all duration-300 ${
+                  activeSlide === idx 
+                    ? 'w-7 bg-[#161513]' 
+                    : 'w-2.5 bg-[#161513]/25 hover:bg-[#161513]/50'
+                }`}
+              />
             ))}
+          </div>
+
+          {/* Previous / Next Arrow Controls */}
+          <button
+            onClick={handlePrevSlide}
+            aria-label="Previous Slide"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm border border-[#EAE5DA] flex items-center justify-center text-[#161513] shadow-xs hover:bg-white transition-all z-20"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleNextSlide}
+            aria-label="Next Slide"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm border border-[#EAE5DA] flex items-center justify-center text-[#161513] shadow-xs hover:bg-white transition-all z-20"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </section>
+
+      {/* 2. Trust Features Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6 border-y border-[#EAE5DA]">
+          
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white border border-[#EAE5DA] flex items-center justify-center shrink-0 text-[#161513]">
+              <Truck className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm text-[#161513]">Free Shipping</h4>
+              <p className="text-[11px] sm:text-xs text-[#827E77]">on orders above ₹999</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white border border-[#EAE5DA] flex items-center justify-center shrink-0 text-[#161513]">
+              <RotateCcw className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm text-[#161513]">Easy Returns</h4>
+              <p className="text-[11px] sm:text-xs text-[#827E77]">7-day return policy</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white border border-[#EAE5DA] flex items-center justify-center shrink-0 text-[#161513]">
+              <ShieldCheck className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm text-[#161513]">Secure Payments</h4>
+              <p className="text-[11px] sm:text-xs text-[#827E77]">Razorpay & COD</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white border border-[#EAE5DA] flex items-center justify-center shrink-0 text-[#161513]">
+              <Headphones className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm text-[#161513]">24×7 Support</h4>
+              <p className="text-[11px] sm:text-xs text-[#827E77]">We're here to help</p>
+            </div>
           </div>
 
         </div>
       </section>
+
+      {/* 3. Shop by Category Section (Men, Women, Kids) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h2 className="font-sans text-xl sm:text-2xl font-bold text-[#161513] mb-6">
+          Shop by Category
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1 — Men */}
+          <Link
+            to="/shop?gender=men"
+            className="group relative rounded-xl bg-[#F8F5EE] border border-[#EAE5DA] p-6 overflow-hidden flex items-center justify-between h-48 sm:h-52 hover:shadow-md transition-all"
+          >
+            <div className="z-10">
+              <h3 className="font-serif text-2xl font-bold text-[#161513] group-hover:text-[#BA4343] transition-colors">
+                Men
+              </h3>
+              <span className="text-xs font-semibold text-[#827E77] inline-flex items-center gap-1 mt-1 group-hover:text-[#161513] transition-colors">
+                <span>Explore Collection</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </div>
+            <div className="h-full w-36 sm:w-44 shrink-0 flex items-end justify-end overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80"
+                alt="ShopSphere Men's Collection"
+                className="h-full w-full object-cover object-top rounded-lg group-hover:scale-105 transition-transform duration-500"
+              />
+            </div>
+          </Link>
+
+          {/* Card 2 — Women */}
+          <Link
+            to="/shop?gender=women"
+            className="group relative rounded-xl bg-[#F6E8DD] border border-[#EAE5DA] p-6 overflow-hidden flex items-center justify-between h-48 sm:h-52 hover:shadow-md transition-all"
+          >
+            <div className="z-10">
+              <h3 className="font-serif text-2xl font-bold text-[#161513] group-hover:text-[#BA4343] transition-colors">
+                Women
+              </h3>
+              <span className="text-xs font-semibold text-[#827E77] inline-flex items-center gap-1 mt-1 group-hover:text-[#161513] transition-colors">
+                <span>Explore Collection</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </div>
+            <div className="h-full w-36 sm:w-44 shrink-0 flex items-end justify-end overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80"
+                alt="ShopSphere Women's Collection"
+                className="h-full w-full object-cover object-top rounded-lg group-hover:scale-105 transition-transform duration-500"
+              />
+            </div>
+          </Link>
+
+          {/* Card 3 — Kids */}
+          <Link
+            to="/shop?gender=kids"
+            className="group relative rounded-xl bg-[#F8F5EE] border border-[#EAE5DA] p-6 overflow-hidden flex items-center justify-between h-48 sm:h-52 hover:shadow-md transition-all"
+          >
+            <div className="z-10">
+              <h3 className="font-serif text-2xl font-bold text-[#161513] group-hover:text-[#BA4343] transition-colors">
+                Kids
+              </h3>
+              <span className="text-xs font-semibold text-[#827E77] inline-flex items-center gap-1 mt-1 group-hover:text-[#161513] transition-colors">
+                <span>Explore Collection</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </div>
+            <div className="h-full w-36 sm:w-44 shrink-0 flex items-end justify-end overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=800&q=80"
+                alt="ShopSphere Kids' Collection"
+                className="h-full w-full object-cover object-top rounded-lg group-hover:scale-105 transition-transform duration-500"
+              />
+            </div>
+          </Link>
+        </div>
+      </section>
+
+      {/* 4. New Arrivals Section (4 Products in One Row) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-sans text-xl sm:text-2xl font-bold text-[#161513]">
+            New Arrivals
+          </h2>
+          <Link
+            to="/shop?sort=newest"
+            className="text-xs sm:text-sm font-semibold text-[#161513] hover:text-[#BA4343] inline-flex items-center gap-1 transition-colors"
+          >
+            <span>View All</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {displayProducts.map((product) => (
+            <ProductCard key={product._id || product.id} product={product} />
+          ))}
+        </div>
+      </section>
+
+      {/* 5. Promotional Sale Banner (Flat 30% Off) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10 sm:pt-8 sm:pb-14">
+        <div className="relative rounded-[22px] bg-[#F4EDE4] border border-[#E6DCCE] overflow-hidden shadow-xs flex flex-col md:flex-row items-stretch md:h-[380px] lg:h-[400px]">
+          
+          {/* Left Side (45% on desktop): Editorial Typography & Action */}
+          <div className="w-full md:w-[45%] flex flex-col justify-center items-start text-left px-8 py-10 sm:px-12 sm:py-12 lg:px-16 lg:py-14 z-10 shrink-0">
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal text-[#161513] tracking-tight leading-[1.15] mb-2 sm:mb-3">
+              Flat 30% Off
+            </h2>
+            <p className="text-sm sm:text-base lg:text-lg text-[#5A554E] font-medium mb-6 sm:mb-8">
+              On Selected Styles
+            </p>
+            <div>
+              <Link
+                to="/shop?sale=true"
+                className="inline-flex items-center gap-2 bg-[#161513] text-[#FDFBF7] px-7 py-3.5 rounded-lg text-xs sm:text-sm font-semibold tracking-wider uppercase hover:bg-[#34302C] active:scale-95 transition-all shadow-sm group"
+              >
+                <span>SHOP THE SALE</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Right Side (55% on desktop): Large Fashion Campaign Image */}
+          <div className="w-full md:w-[55%] relative overflow-hidden h-72 sm:h-84 md:h-full min-h-[280px] md:min-h-0">
+            <img
+              src={promoImage}
+              onError={handlePromoImageError}
+              alt="ShopSphere Fashion Campaign - Stylish Man and Woman"
+              className="w-full h-full object-cover object-[center_20%] transition-transform duration-700 ease-out hover:scale-102"
+            />
+            <div className="hidden md:block absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#F4EDE4] to-transparent pointer-events-none z-10" />
+          </div>
+
+        </div>
+      </section>
+
     </div>
   );
 }

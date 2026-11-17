@@ -123,5 +123,5 @@ ReviewSchema.post('deleteOne', { document: true, query: false }, async function(
   await this.constructor.calculateAverageRating(this.productId);
 });
 
-export const Review = mongoose.model('Review', ReviewSchema);
+export const Review = mongoose.models.Review || mongoose.model('Review', ReviewSchema);
 export default Review;

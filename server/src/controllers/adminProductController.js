@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import Order from '../models/Order.js';
 import InventoryMovement from '../models/InventoryMovement.js';
 import { uploadImage, deleteImage } from '../services/cloudinaryService.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -24,23 +25,28 @@ export const getAdminProducts = async (req, res, next) => {
 
     const query = {};
 
-    if (req.query.search) {
+    if (req.query.search && req.query.search.trim()) {
+      const searchRegex = { $regex: req.query.search.trim(), $options: 'i' };
       query.$or = [
-        { name: { $regex: req.query.search, $options: 'i' } },
-        { brand: { $regex: req.query.search, $options: 'i' } },
-        { 'variants.sku': { $regex: req.query.search, $options: 'i' } }
+        { name: searchRegex },
+        { brand: searchRegex },
+        { 'variants.sku': searchRegex }
       ];
     }
 
-    if (req.query.category) {
+    if (req.query.category && req.query.category !== 'all') {
       query.categoryId = req.query.category;
     }
 
-    if (req.query.gender) {
+    if (req.query.gender && req.query.gender !== 'all') {
       query.gender = req.query.gender;
     }
 
-    if (req.query.isActive !== undefined) {
+    if (req.query.status === 'active') {
+      query.isActive = true;
+    } else if (req.query.status === 'inactive') {
+      query.isActive = false;
+    } else if (req.query.isActive !== undefined && req.query.isActive !== 'all') {
       query.isActive = req.query.isActive === 'true';
     }
 
@@ -62,8 +68,9 @@ export const getAdminProducts = async (req, res, next) => {
 
     // Enhance products with calculated aggregate stock
     const enhancedProducts = products.map((prod) => {
-      const totalStock = prod.variants.reduce((acc, v) => acc + (v.stockQuantity || 0), 0);
-      const hasLowStock = prod.variants.some((v) => v.stockQuantity > 0 && v.stockQuantity <= 5);
+      const variants = prod.variants || [];
+      const totalStock = variants.reduce((acc, v) => acc + (v.stockQuantity || 0), 0);
+      const hasLowStock = variants.some((v) => v.stockQuantity > 0 && v.stockQuantity <= 5);
       const isOutOfStock = totalStock === 0;
 
       return {
@@ -171,7 +178,7 @@ export const createAdminProduct = async (req, res, next) => {
           previousStock: 0,
           newStock: v.stockQuantity,
           reason: 'initial_creation',
-          adminId: req.user._id,
+          adminId: req.user?._id,
           note: `Initial catalogue stock on creation of '${product.name}'`
         });
       }
@@ -191,6 +198,7 @@ export const createAdminProduct = async (req, res, next) => {
 
 /**
  * PATCH /api/v1/admin/products/:id
+ * Updates product attributes and audits any manual stock adjustments per variant SKU.
  */
 export const updateAdminProduct = async (req, res, next) => {
   try {
@@ -200,6 +208,7 @@ export const updateAdminProduct = async (req, res, next) => {
     }
 
     const data = req.body;
+    const inventoryMovementsToRecord = [];
 
     // If variants are being replaced/updated, verify SKU uniqueness against OTHER products
     if (data.variants && data.variants.length > 0) {
@@ -217,14 +226,55 @@ export const updateAdminProduct = async (req, res, next) => {
           new AppError(
             `Variant SKU '${conflictSku}' is already in use by '${existingConflict.name}'.`,
             409,
-            'DUPLICATE_SKU'
+            'DUPLICATE_SKU',
+            [{ field: 'variants', issue: `SKU '${conflictSku}' already assigned to another garment` }]
           )
         );
       }
-      data.variants = data.variants.map((v) => ({
-        ...v,
-        sku: v.sku.toUpperCase()
-      }));
+
+      // Track stock changes per variant SKU for audit movements
+      const oldVariantMap = new Map(
+        (product.variants || []).map((v) => [v.sku.toUpperCase(), v.stockQuantity])
+      );
+
+      data.variants = data.variants.map((v) => {
+        const skuUpper = v.sku.toUpperCase();
+        const previousStock = oldVariantMap.get(skuUpper);
+        const newStock = Number(v.stockQuantity);
+
+        if (previousStock !== undefined && previousStock !== newStock && !isNaN(newStock)) {
+          const quantityChange = newStock - previousStock;
+          if (quantityChange !== 0) {
+            inventoryMovementsToRecord.push({
+              productId: product._id,
+              variantSku: skuUpper,
+              quantityChange,
+              previousStock,
+              newStock,
+              reason: quantityChange > 0 ? 'restock' : 'manual_adjustment',
+              adminId: req.user?._id,
+              note: `Manual stock adjustment for SKU '${skuUpper}' (${previousStock} → ${newStock})`
+            });
+          }
+        } else if (previousStock === undefined && !isNaN(newStock) && newStock > 0) {
+          // Newly added variant to an existing product
+          inventoryMovementsToRecord.push({
+            productId: product._id,
+            variantSku: skuUpper,
+            quantityChange: newStock,
+            previousStock: 0,
+            newStock,
+            reason: 'initial_creation',
+            adminId: req.user?._id,
+            note: `Initial stock for added variant SKU '${skuUpper}'`
+          });
+        }
+
+        return {
+          ...v,
+          sku: skuUpper
+        };
+      });
     }
 
     if (data.slug && data.slug !== product.slug) {
@@ -235,13 +285,22 @@ export const updateAdminProduct = async (req, res, next) => {
       data.slug = slugify(data.slug);
     }
 
+    // Apply updates and persist product in MongoDB
     Object.assign(product, data);
     await product.save();
+
+    // Persist inventory audit movements atomically after product is successfully saved
+    if (inventoryMovementsToRecord.length > 0) {
+      for (const movement of inventoryMovementsToRecord) {
+        await InventoryMovement.create(movement);
+      }
+    }
 
     res.status(200).json({
       success: true,
       data: {
         product,
+        inventoryMovementsRecorded: inventoryMovementsToRecord.length,
         message: `Garment '${product.name}' updated successfully.`
       }
     });
@@ -252,6 +311,8 @@ export const updateAdminProduct = async (req, res, next) => {
 
 /**
  * DELETE /api/v1/admin/products/:id
+ * Prefer soft-deletion (isActive = false).
+ * Never hard-delete products referenced by existing orders or inventory records.
  */
 export const deleteAdminProduct = async (req, res, next) => {
   try {
@@ -260,10 +321,41 @@ export const deleteAdminProduct = async (req, res, next) => {
       return next(new AppError('Product not found.', 404, 'PRODUCT_NOT_FOUND'));
     }
 
-    // Clean up associated Cloudinary image assets if any
-    for (const img of product.images) {
+    // Check if referenced by existing orders OR inventory movements
+    const [hasOrders, hasMovements] = await Promise.all([
+      Order.exists({ 'items.productId': product._id }),
+      InventoryMovement.exists({ productId: product._id })
+    ]);
+
+    // Mandatory safety rule: Soft-delete if referenced in orders or inventory movements,
+    // or if standard deactivation was requested
+    if (hasOrders || hasMovements || req.query.force !== 'true') {
+      product.isActive = false;
+      await product.save();
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          product,
+          deactivated: true,
+          message: hasOrders || hasMovements
+            ? `Garment '${product.name}' is referenced in historical orders/inventory movements. It has been safely deactivated to protect historical data integrity.`
+            : `Garment '${product.name}' has been safely deactivated.`
+        }
+      });
+    }
+
+    // If completely unreferenced by orders AND inventory movements, and force=true:
+    // Check if any of its images are referenced by other products before deleting from Cloudinary
+    for (const img of product.images || []) {
       if (img.public_id) {
-        await deleteImage(img.public_id);
+        const otherProductUsingImage = await Product.exists({
+          _id: { $ne: product._id },
+          'images.public_id': img.public_id
+        });
+        if (!otherProductUsingImage) {
+          await deleteImage(img.public_id);
+        }
       }
     }
 
@@ -272,6 +364,8 @@ export const deleteAdminProduct = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
+        product: null,
+        deleted: true,
         message: `Product '${product.name}' permanently removed from atelier catalog.`
       }
     });

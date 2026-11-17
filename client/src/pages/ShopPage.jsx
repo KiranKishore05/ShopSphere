@@ -89,7 +89,7 @@ export default function ShopPage() {
   const activeChips = [
     search && { key: 'search', label: `Search: "${search}"` },
     category && { key: 'category', label: `Category: ${categories.find(c => c.slug === category)?.name || category}` },
-    gender && { key: 'gender', label: `Gender: ${gender}` },
+    gender && { key: 'gender', label: `Gender: ${gender.charAt(0).toUpperCase() + gender.slice(1)}` },
     size && { key: 'size', label: `Size: ${size}` },
     color && { key: 'color', label: `Color: ${color}` },
     (minPrice || maxPrice) && {

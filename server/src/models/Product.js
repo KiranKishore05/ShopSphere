@@ -10,7 +10,7 @@ const VariantSchema = new mongoose.Schema({
   size: {
     type: String,
     required: [true, 'Size is required'],
-    enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', 'One Size'],
+    enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40', '42', '44', 'One Size'],
     trim: true
   },
   color: {
@@ -76,7 +76,7 @@ const ProductSchema = new mongoose.Schema({
   },
   gender: {
     type: String,
-    enum: ['men', 'women', 'unisex'],
+    enum: ['men', 'women', 'kids', 'unisex'],
     required: [true, 'Gender classification is required'],
     index: true
   },
@@ -143,5 +143,5 @@ ProductSchema.index({
 ProductSchema.index({ categoryId: 1, gender: 1, isActive: 1 });
 ProductSchema.index({ 'variants.price': 1, isActive: 1 });
 
-export const Product = mongoose.model('Product', ProductSchema);
+export const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema);
 export default Product;

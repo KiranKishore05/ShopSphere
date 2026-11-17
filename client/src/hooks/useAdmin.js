@@ -8,6 +8,7 @@ import {
   deleteAdminProduct,
   uploadAdminProductImage,
   fetchAdminCategories,
+  fetchAdminCategoryById,
   createAdminCategory,
   updateAdminCategory,
   deleteAdminCategory,
@@ -21,7 +22,10 @@ import {
   fetchAdminCouponById,
   createAdminCoupon,
   updateAdminCoupon,
-  deleteAdminCoupon
+  deleteAdminCoupon,
+  fetchAdminCustomers,
+  fetchAdminCustomerById,
+  updateAdminCustomerStatus
 } from '../services/adminService';
 
 // ---------------- ANALYTICS ----------------
@@ -93,11 +97,19 @@ export function useUploadProductImage() {
 }
 
 // ---------------- CATEGORIES ----------------
-export function useAdminCategories() {
+export function useAdminCategories(params = {}) {
   return useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: () => fetchAdminCategories(),
+    queryKey: ['admin-categories', params],
+    queryFn: () => fetchAdminCategories(params),
     staleTime: 60 * 1000
+  });
+}
+
+export function useAdminCategory(id) {
+  return useQuery({
+    queryKey: ['admin-category', id],
+    queryFn: () => fetchAdminCategoryById(id),
+    enabled: Boolean(id)
   });
 }
 
@@ -194,10 +206,10 @@ export function useUpdateOrderStatus() {
 }
 
 // ---------------- COUPONS ----------------
-export function useAdminCoupons() {
+export function useAdminCoupons(params = {}) {
   return useQuery({
-    queryKey: ['admin-coupons'],
-    queryFn: () => fetchAdminCoupons(),
+    queryKey: ['admin-coupons', params],
+    queryFn: () => fetchAdminCoupons(params),
     staleTime: 60 * 1000
   });
 }
@@ -228,6 +240,35 @@ export function useDeleteCoupon() {
     mutationFn: (id) => deleteAdminCoupon(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
+    }
+  });
+}
+
+// ---------------- CUSTOMERS ----------------
+export function useAdminCustomers(params = {}) {
+  return useQuery({
+    queryKey: ['admin-customers', params],
+    queryFn: () => fetchAdminCustomers(params),
+    staleTime: 30 * 1000
+  });
+}
+
+export function useAdminCustomer(id) {
+  return useQuery({
+    queryKey: ['admin-customer', id],
+    queryFn: () => fetchAdminCustomerById(id),
+    enabled: Boolean(id)
+  });
+}
+
+export function useUpdateCustomerStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => updateAdminCustomerStatus(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-customer', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['admin-analytics'] });
     }
   });
 }

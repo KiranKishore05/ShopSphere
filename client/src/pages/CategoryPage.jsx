@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchCategoryProducts, fetchCategories } from '../services/catalogService';
@@ -10,6 +10,7 @@ import SEO from '../components/common/SEO';
 
 export default function CategoryPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
@@ -62,6 +63,18 @@ export default function CategoryPage() {
       }
       return updated;
     });
+  };
+
+  const handleFilterChange = (key, value) => {
+    if (key === 'category') {
+      if (value && value !== slug) {
+        navigate(`/category/${value}${gender ? `?gender=${gender}` : ''}`);
+      } else if (!value) {
+        navigate(gender ? `/shop?gender=${gender}` : '/shop');
+      }
+    } else {
+      updateFilter(key, value);
+    }
   };
 
   const handleResetFilters = () => {
@@ -144,7 +157,7 @@ export default function CategoryPage() {
         <FilterSidebar
           categories={categories}
           filters={{ category: slug, gender, size, color, minPrice, maxPrice, inStock }}
-          onFilterChange={updateFilter}
+          onFilterChange={handleFilterChange}
           onResetFilters={handleResetFilters}
           isOpenMobile={mobileFilterOpen}
           onCloseMobile={() => setMobileFilterOpen(false)}

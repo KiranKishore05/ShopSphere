@@ -14,12 +14,12 @@ const PaymentSchema = new mongoose.Schema({
   },
   razorpayPaymentId: {
     type: String,
-    default: null,
-    index: true
+    default: null
   },
   razorpaySignature: {
     type: String,
-    default: null
+    default: null,
+    select: false
   },
   amount: {
     type: Number,
@@ -49,10 +49,26 @@ const PaymentSchema = new mongoose.Schema({
     amount: { type: Number },
     reason: { type: String },
     refundedAt: { type: Date }
-  }
+  },
+  refunds: [{
+    refundId: { type: String },
+    amount: { type: Number },
+    reason: { type: String },
+    refundedAt: { type: Date }
+  }]
 }, {
   timestamps: true
 });
 
-export const Payment = mongoose.model('Payment', PaymentSchema);
+PaymentSchema.index(
+  { razorpayPaymentId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      razorpayPaymentId: { $type: 'string' }
+    }
+  }
+);
+
+export const Payment = mongoose.models.Payment || mongoose.model('Payment', PaymentSchema);
 export default Payment;

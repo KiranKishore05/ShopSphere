@@ -53,10 +53,41 @@ export const getAdminInventoryOverview = async (req, res, next) => {
       }
     }
 
+    // Filter flattened variants by search if search query is provided
+    if (req.query.search) {
+      const s = req.query.search.trim().toLowerCase();
+      allVariants = allVariants.filter(
+        (v) =>
+          v.productName.toLowerCase().includes(s) ||
+          v.brand.toLowerCase().includes(s) ||
+          v.sku.toLowerCase().includes(s)
+      );
+    }
+
+    // Baseline summary metrics before secondary status/stockRange filters
+    const summaryVariants = [...allVariants];
+    const totalVariantsCount = summaryVariants.length;
+    const totalUnitsCount = summaryVariants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
+    const inStockCount = summaryVariants.filter((v) => v.status === 'healthy').length;
+    const lowStockCount = summaryVariants.filter((v) => v.status === 'low_stock').length;
+    const outOfStockCount = summaryVariants.filter((v) => v.status === 'out_of_stock').length;
+
+    // Product-level stock counts for dashboard cards
+    const inStockProducts = products.filter((p) => (p.variants || []).some((v) => (v.stockQuantity || 0) > 5)).length;
+    const lowStockProducts = products.filter((p) => {
+      const vars = p.variants || [];
+      const hasLow = vars.some((v) => (v.stockQuantity || 0) > 0 && (v.stockQuantity || 0) <= 5);
+      const allZero = vars.every((v) => (v.stockQuantity || 0) === 0);
+      return hasLow && !allZero;
+    }).length;
+    const outOfStockProducts = products.filter((p) => (p.variants || []).every((v) => (v.stockQuantity || 0) === 0)).length;
+
+    // Apply status filter
     if (req.query.status && req.query.status !== 'all') {
       allVariants = allVariants.filter((v) => v.status === req.query.status);
     }
 
+    // Apply stock range filter
     if (req.query.stockRange && req.query.stockRange !== 'all') {
       if (req.query.stockRange === '1-10') {
         allVariants = allVariants.filter((v) => v.stockQuantity >= 1 && v.stockQuantity <= 10);
@@ -69,14 +100,8 @@ export const getAdminInventoryOverview = async (req, res, next) => {
       }
     }
 
-    const totalVariants = allVariants.length;
+    const totalFilteredVariants = allVariants.length;
     const paginatedVariants = allVariants.slice(skip, skip + limit);
-
-    // Summary counts for Image 1 reference
-    const inStockCount = allVariants.filter((v) => v.status === 'healthy').length;
-    const lowStockCount = allVariants.filter((v) => v.status === 'low_stock').length;
-    const outOfStockCount = allVariants.filter((v) => v.status === 'out_of_stock').length;
-    const totalUnits = allVariants.reduce((sum, v) => sum + v.stockQuantity, 0);
 
     const items = paginatedVariants.map((v) => ({
       ...v,
@@ -92,17 +117,20 @@ export const getAdminInventoryOverview = async (req, res, next) => {
         variants: items,
         summary: {
           totalProducts: products.length,
-          totalVariants,
-          totalUnits,
+          totalVariants: totalVariantsCount,
+          totalUnits: totalUnitsCount,
           inStockCount,
           lowStockCount,
-          outOfStockCount
+          outOfStockCount,
+          inStockProducts,
+          lowStockProducts,
+          outOfStockProducts
         },
         meta: {
           page,
           limit,
-          total: totalVariants,
-          totalPages: Math.ceil(totalVariants / limit),
+          total: totalFilteredVariants,
+          totalPages: Math.ceil(totalFilteredVariants / limit),
           lowStockCount
         }
       }

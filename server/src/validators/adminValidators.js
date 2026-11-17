@@ -11,7 +11,7 @@ const variantItemSchema = z.object({
     .trim()
     .min(2, 'SKU must be at least 2 characters')
     .toUpperCase(),
-  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', 'One Size'], {
+  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40', '42', '44', 'One Size'], {
     required_error: 'Valid size is required'
   }),
   color: z.object({
@@ -46,12 +46,18 @@ const productBaseSchema = z.object({
   categoryId: z.string({ required_error: 'Category ID is required' })
     .regex(objectIdRegex, 'Invalid category ID format'),
   brand: z.string({ required_error: 'Brand is required' }).trim().min(1),
-  gender: z.enum(['men', 'women', 'unisex'], {
+  gender: z.enum(['men', 'women', 'kids', 'unisex'], {
     required_error: 'Gender classification is required'
   }),
-  tags: z.array(z.string().trim().toLowerCase()).optional().default([]),
-  images: z.array(productImageSchema).min(1, 'At least one image is required'),
-  variants: z.array(variantItemSchema).min(1, 'At least one variant is required'),
+  tags: z.array(
+    z.string().trim().toLowerCase().max(50, 'Tag cannot exceed 50 characters')
+  ).max(50, 'Tags cannot exceed 50 items').optional().default([]),
+  images: z.array(productImageSchema)
+    .min(1, 'At least one image is required')
+    .max(20, 'Images cannot exceed 20 items'),
+  variants: z.array(variantItemSchema)
+    .min(1, 'At least one variant is required')
+    .max(100, 'Variants cannot exceed 100 items'),
   isFeatured: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true)
 });
@@ -83,11 +89,14 @@ export const createCategorySchema = z.object({
     .max(60, 'Name cannot exceed 60 characters'),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(500).optional().default(''),
-  image: z.object({
-    url: z.string({ required_error: 'Category image URL is required' }).url(),
-    public_id: z.string().optional().default(''),
-    altText: z.string().optional().default('')
-  }),
+  image: z.union([
+    z.string().url('Category image must be a valid URL'),
+    z.object({
+      url: z.string({ required_error: 'Category image URL is required' }).url('Valid image URL required'),
+      public_id: z.string().optional().default(''),
+      altText: z.string().optional().default('')
+    })
+  ]).optional().default('https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=80'),
   isActive: z.boolean().optional().default(true)
 });
 
@@ -106,12 +115,21 @@ export const adjustStockSchema = z.object({
 });
 
 export const updateOrderStatusSchema = z.object({
-  orderStatus: z.enum(['confirmed', 'processing', 'shipped', 'delivered', 'cancelled'], {
+  orderStatus: z.enum([
+    'confirmed',
+    'processing',
+    'shipped',
+    'delivered',
+    'cancelled',
+    'return_requested',
+    'returned'
+  ], {
     required_error: 'Valid order status is required'
   }),
   trackingNumber: z.string().trim().optional(),
   carrierName: z.string().trim().optional(),
-  note: z.string().trim().optional()
+  note: z.string().trim().optional(),
+  cancellationReason: z.string().trim().optional()
 });
 
 export const createCouponSchema = z.object({
@@ -132,11 +150,74 @@ export const createCouponSchema = z.object({
   usageLimit: z.number().int().min(1).optional().default(100),
   perUserLimit: z.number().int().min(1).optional().default(1),
   isActive: z.boolean().optional().default(true)
+}).superRefine((data, ctx) => {
+  if (data.discountType === 'percentage' && data.discountValue > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Percentage discount cannot exceed 100%',
+      path: ['discountValue']
+    });
+  }
+  if (data.startDate && data.expiryDate && data.expiryDate <= data.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expiry date must be later than start date',
+      path: ['expiryDate']
+    });
+  }
 });
 
-export const updateCouponSchema = createCouponSchema.partial();
+export const updateCouponSchema = z.object({
+  code: z.string().trim().min(2, 'Coupon code must be at least 2 characters').toUpperCase().optional(),
+  description: z.string().trim().optional(),
+  discountType: z.enum(['percentage', 'fixed']).optional(),
+  discountValue: z.number().min(1, 'Discount value must be at least 1').optional(),
+  minOrderAmount: z.number().min(0).optional(),
+  maxDiscountAmount: z.number().min(0).nullable().optional(),
+  startDate: z.coerce.date().optional(),
+  expiryDate: z.coerce.date().optional(),
+  usageLimit: z.number().int().min(1).optional(),
+  perUserLimit: z.number().int().min(1).optional(),
+  isActive: z.boolean().optional()
+}).superRefine((data, ctx) => {
+  if (data.discountType === 'percentage' && data.discountValue !== undefined && data.discountValue > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Percentage discount cannot exceed 100%',
+      path: ['discountValue']
+    });
+  }
+  if (data.startDate && data.expiryDate && data.expiryDate <= data.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expiry date must be later than start date',
+      path: ['expiryDate']
+    });
+  }
+});
+
+export const couponQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  status: z.enum(['all', 'active', 'inactive', 'expired']).optional().default('all'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+});
 
 export const imageUploadSchema = z.object({
   image: z.string({ required_error: 'Image data or base64 string is required' }).min(1),
   folder: z.string().optional().default('shopsphere/products')
+});
+
+export const updateCustomerStatusSchema = z.object({
+  isActive: z.boolean({ required_error: 'Account status (isActive) is required' }),
+  reason: z.string().trim().max(500).optional()
+});
+
+export const customerQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(15),
+  search: z.string().trim().optional(),
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional()
 });

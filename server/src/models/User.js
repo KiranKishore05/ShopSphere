@@ -53,17 +53,46 @@ const UserSchema = new mongoose.Schema({
   }],
   passwordResetToken: { type: String, select: false },
   passwordResetExpires: { type: Date, select: false },
+  passwordChangedAt: { type: Date },
   isActive: {
     type: Boolean,
     default: true,
     index: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: {
+    transform: (doc, ret) => {
+      delete ret.passwordHash;
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      delete ret.passwordChangedAt;
+      return ret;
+    }
+  },
+  toObject: {
+    transform: (doc, ret) => {
+      delete ret.passwordHash;
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      delete ret.passwordChangedAt;
+      return ret;
+    }
+  }
 });
 
 // Compound index for administrative filtering
 UserSchema.index({ role: 1, isActive: 1 });
+
+// Partial index for active password reset token verification
+UserSchema.index(
+  { passwordResetToken: 1 },
+  {
+    partialFilterExpression: {
+      passwordResetToken: { $type: 'string' }
+    }
+  }
+);
 
 // Instance method to verify passwords
 UserSchema.methods.comparePassword = async function(candidatePassword) {
@@ -79,5 +108,5 @@ UserSchema.statics.hashPassword = async function(plainPassword) {
   return bcrypt.hash(plainPassword, salt);
 };
 
-export const User = mongoose.model('User', UserSchema);
+export const User = mongoose.models.User || mongoose.model('User', UserSchema);
 export default User;

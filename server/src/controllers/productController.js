@@ -19,7 +19,7 @@ export const formatProductSummary = (product) => {
   const maxComparePrice = comparePrices.length ? Math.max(...comparePrices) : null;
 
   // Natural fashion size ordering
-  const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', 'One Size'];
+  const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40', '42', '44', 'One Size'];
   const rawSizes = [...new Set(variants.map(v => v.size))];
   const availableSizes = rawSizes.sort((a, b) => {
     const idxA = sizeOrder.indexOf(a);
@@ -110,26 +110,52 @@ export const getProducts = async (req, res, next) => {
 
     const filter = { isActive: true };
 
-    // 1. Text Search across name, brand, tags, and description
+    // 1. Text Search across name, brand, tags, description, and categories
     if (search && search.trim()) {
       const escaped = escapeRegex(search.trim());
       const regex = new RegExp(escaped, 'i');
+
+      const matchingCats = await Category.find({
+        $or: [{ name: regex }, { slug: regex }],
+        isActive: true
+      }).select('_id');
+      const catIds = matchingCats.map(c => c._id);
+
       filter.$or = [
         { name: regex },
         { brand: regex },
         { tags: regex },
         { description: regex }
       ];
+
+      if (catIds.length > 0) {
+        filter.$or.push({ categoryId: { $in: catIds } });
+      }
     }
 
-    // 2. Category Filter (slug or ObjectId)
+    // 2. Category Filter (slug, alias, or ObjectId)
     if (category && category.trim()) {
       const catTrim = category.trim();
+      const slugAliases = {
+        'jeans-trousers': 'bottomwear',
+        'jackets-hoodies': 'outerwear',
+        'ethnic-wear': 'ethnic-wear',
+        'dresses-tops': 'dresses-tops',
+        'kids-clothing': 'kids-clothing'
+      };
+      const normalizedSlug = slugAliases[catTrim.toLowerCase()] || catTrim.toLowerCase();
+
       let categoryDoc = null;
       if (mongoose.Types.ObjectId.isValid(catTrim)) {
         categoryDoc = await Category.findById(catTrim);
       } else {
-        categoryDoc = await Category.findOne({ slug: catTrim.toLowerCase() });
+        categoryDoc = await Category.findOne({
+          $or: [
+            { slug: normalizedSlug },
+            { slug: catTrim.toLowerCase() },
+            { name: new RegExp(`^${escapeRegex(catTrim)}$`, 'i') }
+          ]
+        });
       }
 
       if (!categoryDoc) {
@@ -346,7 +372,20 @@ export const getProductBySlug = async (req, res, next) => {
 export const getCategoryProducts = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const categoryDoc = await Category.findOne({ slug: slug.toLowerCase(), isActive: true }).lean();
+    const slugAliases = {
+      'jeans-trousers': 'bottomwear',
+      'jackets-hoodies': 'outerwear'
+    };
+    const normalizedSlug = slugAliases[slug.toLowerCase()] || slug.toLowerCase();
+
+    const categoryDoc = await Category.findOne({
+      $or: [
+        { slug: normalizedSlug },
+        { slug: slug.toLowerCase() },
+        { name: new RegExp(`^${escapeRegex(slug)}$`, 'i') }
+      ],
+      isActive: true
+    }).lean();
 
     if (!categoryDoc) {
       return next(new AppError(`Category '${slug}' not found.`, 404, 'CATEGORY_NOT_FOUND'));
