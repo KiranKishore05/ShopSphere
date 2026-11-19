@@ -38,14 +38,16 @@ export const isOrderOwner = (order, user) => {
  * Validates checkout request consistency against an existing idempotent order snapshot.
  * Verifies paymentMethod, coupon, delivery address, items/quantities, and server totals.
  */
-export const verifyOrderConsistency = (existingOrder, { paymentMethod, coupon, total, subtotal, resolvedAddress, itemsSnapshot }) => {
+export const verifyOrderConsistency = (existingOrder, { paymentMethod, coupon, couponCode, total, subtotal, resolvedAddress, itemsSnapshot }) => {
   if (!existingOrder) return false;
 
   // 1. Payment method match
   if (existingOrder.paymentMethod !== paymentMethod) return false;
 
   // 2. Coupon code match
-  const requestedCouponCode = coupon ? coupon.code : null;
+  const requestedCouponCode = (typeof coupon === 'object' && coupon?.code)
+    ? coupon.code
+    : (couponCode || coupon || null);
   const existingCouponCode = existingOrder.couponCode || null;
   if (requestedCouponCode !== existingCouponCode) return false;
 
@@ -55,21 +57,23 @@ export const verifyOrderConsistency = (existingOrder, { paymentMethod, coupon, t
     return false;
   }
 
-  // 4. Items and quantities match
-  if (!existingOrder.items || !itemsSnapshot || existingOrder.items.length !== itemsSnapshot.length) return false;
-  const existingItemsMap = new Map();
-  for (const it of existingOrder.items) {
-    const key = `${it.variantSku}:${it.quantity}`;
-    existingItemsMap.set(key, (existingItemsMap.get(key) || 0) + 1);
-  }
-  for (const it of itemsSnapshot) {
-    const key = `${it.variantSku}:${it.quantity}`;
-    const count = existingItemsMap.get(key) || 0;
-    if (count <= 0) return false;
-    existingItemsMap.set(key, count - 1);
+  // 4. Items and quantities match (when itemsSnapshot is provided)
+  if (itemsSnapshot && itemsSnapshot.length > 0) {
+    if (!existingOrder.items || existingOrder.items.length !== itemsSnapshot.length) return false;
+    const existingItemsMap = new Map();
+    for (const it of existingOrder.items) {
+      const key = `${it.variantSku}:${it.quantity}`;
+      existingItemsMap.set(key, (existingItemsMap.get(key) || 0) + 1);
+    }
+    for (const it of itemsSnapshot) {
+      const key = `${it.variantSku}:${it.quantity}`;
+      const count = existingItemsMap.get(key) || 0;
+      if (count <= 0) return false;
+      existingItemsMap.set(key, count - 1);
+    }
   }
 
-  // 5. Total and subtotal match
+  // 5. Total and subtotal match (when provided)
   if (typeof total === 'number' && typeof existingOrder.total === 'number') {
     if (Math.abs(existingOrder.total - total) > 0.01) return false;
   }
@@ -89,43 +93,7 @@ export const checkout = async (req, res, next) => {
   try {
     const { addressId, shippingAddress: customShippingAddress, paymentMethod, couponCode, idempotencyKey } = req.body;
 
-    // Idempotency check: if an order with same idempotencyKey exists
-    let existingKeyOrder = null;
-    if (idempotencyKey) {
-      existingKeyOrder = await Order.findOne({ idempotencyKey });
-      if (existingKeyOrder) {
-        // 1. Never expose or resolve an idempotency key belonging to another user
-        if (!isOrderOwner(existingKeyOrder, req.user)) {
-          return next(
-            new AppError(
-              'This idempotency key is already in use by another transaction.',
-              409,
-              'IDEMPOTENCY_KEY_IN_USE'
-            )
-          );
-        }
-      }
-    }
-
-    // 1. Fetch & Verify Cart from Database
-    const enrichedCart = await buildEnrichedCart(req.user._id);
-    if (!enrichedCart.items || enrichedCart.items.length === 0) {
-      return next(new AppError('Your shopping bag is empty. Please select garments before checkout.', 400, 'CART_EMPTY'));
-    }
-
-    // Verify all items are active and stock is sufficient
-    for (const item of enrichedCart.items) {
-      if (!item.isAvailable || item.stockQuantity < item.quantity) {
-        return next(new AppError(
-          `Garment '${item.productName}' (${item.size}) has insufficient inventory. Available: ${item.stockQuantity}, in bag: ${item.quantity}.`,
-          400,
-          'INSUFFICIENT_STOCK',
-          [{ field: item.variantSku, issue: 'Stock unavailable' }]
-        ));
-      }
-    }
-
-    // 2. Resolve Shipping Address Snapshot
+    // 1. Resolve Shipping Address Snapshot early
     let resolvedAddress;
     if (addressId) {
       const user = await User.findById(req.user._id);
@@ -158,12 +126,73 @@ export const checkout = async (req, res, next) => {
       return next(new AppError('A valid delivery address is required to place an order.', 400, 'ADDRESS_REQUIRED'));
     }
 
-    // 3. Server-authoritative Pricing & Calculations
+    // 2. Idempotency pre-check: resolve existing key BEFORE checking current shopping cart
+    // This ensures retries after cart clearance return the original order instead of CART_EMPTY
+    if (idempotencyKey) {
+      const existingKeyOrder = await Order.findOne({ idempotencyKey });
+      if (existingKeyOrder) {
+        // Security check: Never expose or resolve an idempotency key belonging to another user
+        if (!isOrderOwner(existingKeyOrder, req.user)) {
+          return next(
+            new AppError(
+              'This idempotency key is already in use by another transaction.',
+              409,
+              'IDEMPOTENCY_KEY_IN_USE'
+            )
+          );
+        }
+
+        // Validate consistency against original request parameters
+        const isConsistent = verifyOrderConsistency(existingKeyOrder, {
+          paymentMethod,
+          couponCode,
+          resolvedAddress
+        });
+
+        if (!isConsistent) {
+          return next(
+            new AppError(
+              'Idempotency key reused with mismatched order details.',
+              409,
+              'IDEMPOTENCY_PAYLOAD_MISMATCH'
+            )
+          );
+        }
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            order: existingKeyOrder,
+            isDuplicate: true
+          }
+        });
+      }
+    }
+
+    // 3. Fetch & Verify Cart from Database
+    const enrichedCart = await buildEnrichedCart(req.user._id);
+    if (!enrichedCart.items || enrichedCart.items.length === 0) {
+      return next(new AppError('Your shopping bag is empty. Please select garments before checkout.', 400, 'CART_EMPTY'));
+    }
+
+    // Verify all items are active and stock is sufficient
+    for (const item of enrichedCart.items) {
+      if (!item.isAvailable || item.stockQuantity < item.quantity) {
+        return next(new AppError(
+          `Garment '${item.productName}' (${item.size}) has insufficient inventory. Available: ${item.stockQuantity}, in bag: ${item.quantity}.`,
+          400,
+          'INSUFFICIENT_STOCK',
+          [{ field: item.variantSku, issue: 'Stock unavailable' }]
+        ));
+      }
+    }
+
+    // 4. Server-authoritative Pricing & Calculations
     const subtotal = enrichedCart.subtotal;
     const shippingFee = enrichedCart.isEligibleForFreeShipping ? 0 : 350;
     const tax = 0; // Inclusive for luxury atelier goods
 
-    // 4. Coupon Calculation
+    // 5. Coupon Calculation
     let coupon = null;
     let discount = 0;
     if (couponCode) {
@@ -174,7 +203,7 @@ export const checkout = async (req, res, next) => {
 
     const total = Math.max(0, subtotal - discount + shippingFee + tax);
 
-    // 5. COD Validation
+    // 6. COD Validation
     if (paymentMethod === 'cod') {
       if (total > 20000) {
         return next(new AppError(
@@ -185,7 +214,7 @@ export const checkout = async (req, res, next) => {
       }
     }
 
-    // 6. Build Immutable Item Snapshots
+    // 7. Build Immutable Item Snapshots
     const itemsSnapshot = enrichedCart.items.map(item => ({
       productId: item.productId,
       variantSku: item.variantSku,
@@ -197,36 +226,6 @@ export const checkout = async (req, res, next) => {
       quantity: item.quantity,
       lineTotal: item.itemTotal
     }));
-
-    // 7. Check existing idempotent order consistency if pre-check found a key for this user
-    if (existingKeyOrder) {
-      const isConsistent = verifyOrderConsistency(existingKeyOrder, {
-        paymentMethod,
-        coupon,
-        total,
-        subtotal,
-        resolvedAddress,
-        itemsSnapshot
-      });
-
-      if (!isConsistent) {
-        return next(
-          new AppError(
-            'Idempotency key reused with mismatched order details.',
-            409,
-            'IDEMPOTENCY_PAYLOAD_MISMATCH'
-          )
-        );
-      }
-
-      return res.status(200).json({
-        success: true,
-        data: {
-          order: existingKeyOrder,
-          isDuplicate: true
-        }
-      });
-    }
 
     // 8. Create Order Document
     const orderNumber = generateOrderNumber();

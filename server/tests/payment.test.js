@@ -217,7 +217,7 @@ describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
       }
     });
 
-    it('should reject invalid payment signatures with 400', async () => {
+    it('should reject invalid payment signatures with 400 and preserve payment state', async () => {
       const res = await request(app)
         .post('/api/v1/payments/razorpay/verify')
         .set('Cookie', customerCookie)
@@ -231,9 +231,13 @@ describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('INVALID_PAYMENT_SIGNATURE');
 
-      // Verify payment doc was marked failed
+      // Security requirement: Invalid signature must NOT mark payment or order as failed
       const paymentDoc = await Payment.findOne({ razorpayOrderId });
-      expect(paymentDoc.paymentStatus).toBe('failed');
+      expect(paymentDoc.paymentStatus).toBe('pending');
+
+      const freshOrder = await Order.findById(pendingOrder._id);
+      expect(freshOrder.paymentStatus).toBe('pending');
+      expect(freshOrder.orderStatus).toBe('pending_payment');
     });
 
     it('should successfully verify payment with valid HMAC SHA-256 signature', async () => {
@@ -803,6 +807,24 @@ describe('Phase 6.4C: SEC-05 Razorpay Webhook Raw-Body & Secret Security Suite',
     expect(res.body.error).toBe('Webhook service misconfigured');
   });
 
+  it('8b. should fail safely with HTTP 500 when webhook secret is mistakenly configured as a URL', async () => {
+    vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(1);
+    config.RAZORPAY_WEBHOOK_SECRET = 'https://api.shopsphere.com/api/v1/payments/webhook';
+
+    const payloadStr = JSON.stringify({ event: 'payment.captured' });
+    const signature = crypto.createHmac('sha256', 'https://api.shopsphere.com/api/v1/payments/webhook').update(Buffer.from(payloadStr)).digest('hex');
+
+    const res = await request(app)
+      .post('/api/v1/payments/razorpay/webhook')
+      .set('x-razorpay-signature', signature)
+      .set('Content-Type', 'application/json')
+      .send(payloadStr);
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe('Webhook service misconfigured');
+  });
+
   it('9. should reject with HTTP 400 when request body bytes are tampered after signature generation', async () => {
     vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(1);
 
@@ -991,7 +1013,7 @@ describe('Phase 2: Payment Security, Verification & Backend Mock Flow Suite', ()
   });
 
   describe('POST /api/v1/payments/razorpay/verify (Signature & Idempotency)', () => {
-    it('should reject invalid signature with 400 INVALID_PAYMENT_SIGNATURE', async () => {
+    it('should reject invalid signature with 400 INVALID_PAYMENT_SIGNATURE without mutating state', async () => {
       const mockOrder = {
         _id: sampleOrderId,
         userId: userId,
@@ -1001,8 +1023,8 @@ describe('Phase 2: Payment Security, Verification & Backend Mock Flow Suite', ()
       };
 
       vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
-      vi.spyOn(Payment, 'findOne').mockResolvedValue({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId });
-      vi.spyOn(Payment, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
+      vi.spyOn(Payment, 'findOne').mockResolvedValue({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId, paymentStatus: 'pending' });
+      const spyPaymentUpdate = vi.spyOn(Payment, 'findOneAndUpdate');
 
       const res = await request(app)
         .post('/api/v1/payments/razorpay/verify')
@@ -1017,6 +1039,41 @@ describe('Phase 2: Payment Security, Verification & Backend Mock Flow Suite', ()
 
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('INVALID_PAYMENT_SIGNATURE');
+      // Assert zero state mutation
+      expect(mockOrder.save).not.toHaveBeenCalled();
+      expect(spyPaymentUpdate).not.toHaveBeenCalled();
+      expect(mockOrder.paymentStatus).toBe('pending');
+      expect(mockOrder.orderStatus).toBe('pending_payment');
+    });
+
+    it('should not mutate an already-paid order or payment when an invalid signature is submitted', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        userId: userId,
+        orderStatus: 'confirmed',
+        paymentStatus: 'paid',
+        save: vi.fn().mockResolvedValue(true)
+      };
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      vi.spyOn(Payment, 'findOne').mockResolvedValue({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId, paymentStatus: 'paid' });
+      const spyPaymentUpdate = vi.spyOn(Payment, 'findOneAndUpdate');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId,
+          razorpayPaymentId: 'pay_tampered_123',
+          razorpaySignature: 'invalid_hex_signature_not_matching_hmac'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.message).toContain('already verified');
+      expect(mockOrder.paymentStatus).toBe('paid');
+      expect(spyPaymentUpdate).not.toHaveBeenCalled();
     });
 
     it('should reject duplicate payment ID associated with another order with 409', async () => {
@@ -1086,6 +1143,37 @@ describe('Phase 2: Payment Security, Verification & Backend Mock Flow Suite', ()
 
       expect(res.status).toBe(200);
       expect(res.body.data.message).toContain('already verified');
+    });
+
+    it('should prevent delayed client-side payment failure from overwriting an already-paid order or payment', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        orderNumber: 'SPH-PAID-001',
+        userId: userId,
+        orderStatus: 'confirmed',
+        paymentStatus: 'paid',
+        save: vi.fn().mockResolvedValue(true)
+      };
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      const spyOrderUpdate = vi.spyOn(Order, 'findOneAndUpdate');
+      const spyPaymentUpdate = vi.spyOn(Payment, 'findOneAndUpdate');
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/failed')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId,
+          errorDescription: 'Delayed failure callback after customer paid'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.paymentStatus).toBe('paid');
+      expect(mockOrder.paymentStatus).toBe('paid');
+      expect(spyOrderUpdate).not.toHaveBeenCalled();
+      expect(spyPaymentUpdate).not.toHaveBeenCalled();
     });
   });
 });

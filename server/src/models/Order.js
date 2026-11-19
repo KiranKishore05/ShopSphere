@@ -88,7 +88,8 @@ const OrderSchema = new mongoose.Schema({
   cancellationReason: { type: String, default: '' },
   cancelledAt: { type: Date },
   couponUsageApplied: { type: Boolean, default: false },
-  couponUsageReleased: { type: Boolean, default: false }
+  couponUsageReleased: { type: Boolean, default: false },
+  inventoryDeducted: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

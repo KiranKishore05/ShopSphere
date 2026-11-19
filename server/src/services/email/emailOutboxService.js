@@ -36,7 +36,7 @@ export const queueEmail = async ({ eventKey, eventType, recipient, templateData,
   // or contains forbidden sensitive keys (passwords, raw tokens, signatures).
   const validatedData = validateTemplateData(eventType, templateData);
 
-  const doc = new EmailOutbox({
+  const outboxData = {
     eventKey: eventKey.trim(),
     eventType,
     recipient: normalizedRecipient,
@@ -45,12 +45,12 @@ export const queueEmail = async ({ eventKey, eventType, recipient, templateData,
     attempts: 0,
     maxAttempts: 5,
     nextAttemptAt: new Date()
-  });
+  };
 
-  const saveOpts = session ? { session } : {};
+  const createOpts = session ? { session } : {};
 
   try {
-    const saved = await doc.save(saveOpts);
+    const [saved] = await EmailOutbox.create([outboxData], createOpts);
     return {
       queued: true,
       outboxId: saved._id.toString(),

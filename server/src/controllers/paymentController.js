@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import Razorpay from 'razorpay';
 import Order from '../models/Order.js';
 import Payment from '../models/Payment.js';
@@ -35,6 +36,226 @@ const timingSafeCompare = (a, b) => {
   } catch {
     return false;
   }
+};
+
+/**
+ * Concurrency-safe atomic payment settlement helper.
+ * Guarantees:
+ * - Unified multi-document ACID transaction across Payment, Order, Inventory, Movements, Coupon, and Cart.
+ * - Automatic retry on transient write conflicts / lock contention via session.withTransaction.
+ * - Exactly one execution can transition an order/payment from unpaid to paid.
+ * - Prevents double inventory deduction when client verification and webhooks arrive simultaneously.
+ * - Handles duplicate payment ID conflicts and concurrency race conditions safely.
+ * - Confirmation email dispatch is deferred until AFTER transaction successfully commits.
+ * - Automatic rollback of all changes if any stage (inventory, movement, order, coupon, cart) fails.
+ */
+export const confirmOrderPayment = async ({
+  order,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature = null,
+  source = 'verify',
+  customerEmail = null,
+  customerName = null
+}) => {
+  // 1. Pre-flight check: Is the order already confirmed and paid?
+  if (order.paymentStatus === 'paid' && order.orderStatus === 'confirmed') {
+    return { order, isDuplicate: true };
+  }
+
+  // 2. Pre-flight cross-order duplicate check
+  if (razorpayPaymentId && razorpayPaymentId !== 'pay_webhook_verified') {
+    const conflictPayment = await Payment.findOne({ razorpayPaymentId });
+    if (conflictPayment && conflictPayment.orderId.toString() !== order._id.toString()) {
+      throw new AppError(
+        'This Razorpay payment ID is already associated with another order.',
+        409,
+        'DUPLICATE_PAYMENT_CROSS_ORDER'
+      );
+    }
+  }
+
+  // Internal settlement logic executed within a MongoDB ClientSession
+  const executeSettlement = async (session) => {
+    const sessionOpts = session ? { session } : {};
+
+    // A. Atomically transition Payment record to 'paid' (primary concurrency gate)
+    let paymentRecord;
+    try {
+      paymentRecord = await Payment.findOneAndUpdate(
+        {
+          razorpayOrderId,
+          paymentStatus: { $ne: 'paid' }
+        },
+        {
+          $set: {
+            paymentStatus: 'paid',
+            razorpayPaymentId,
+            ...(razorpaySignature ? { razorpaySignature } : {}),
+            verifiedAt: new Date()
+          }
+        },
+        { new: true, ...sessionOpts }
+      );
+    } catch (payErr) {
+      if (
+        payErr.code === 11000 &&
+        (payErr.keyPattern?.razorpayPaymentId || payErr.message?.includes('razorpayPaymentId'))
+      ) {
+        const conflict = await Payment.findOne({ razorpayPaymentId });
+        if (conflict && conflict.orderId.toString() === order._id.toString()) {
+          const latestOrder = await Order.findById(order._id);
+          return { order: latestOrder || order, isDuplicate: true };
+        }
+        throw new AppError(
+          'This Razorpay payment ID is already associated with another order.',
+          409,
+          'DUPLICATE_PAYMENT_CROSS_ORDER'
+        );
+      }
+      throw payErr;
+    }
+
+    if (!paymentRecord) {
+      // Another concurrent worker (e.g. concurrent webhook or verify request) already transitioned this payment!
+      const latestOrder = await Order.findById(order._id);
+      return { order: latestOrder || order, isDuplicate: true };
+    }
+
+    // B. Deduct inventory within the same session/transaction
+    await deductOrderInventory(order, session);
+
+    // C. Update Order record within the same session/transaction
+    const orderDoc = (await Order.findById(order._id, null, sessionOpts)) || order;
+    orderDoc.paymentStatus = 'paid';
+    orderDoc.orderStatus = 'confirmed';
+    if (orderDoc.statusTimeline) {
+      orderDoc.statusTimeline.push({
+        status: 'confirmed',
+        timestamp: new Date(),
+        note: `Payment verified via Razorpay (${source}: ${razorpayPaymentId})`
+      });
+    }
+    if (session && typeof orderDoc.$session === 'function') {
+      orderDoc.$session(session);
+    }
+    if (typeof orderDoc.save === 'function') {
+      await orderDoc.save(sessionOpts);
+    }
+
+    // D. Atomically consume coupon allocation within the same session/transaction
+    if (orderDoc.couponId) {
+      await consumeOrderCoupon(orderDoc._id, session);
+    }
+
+    // E. Clear customer cart within the same session/transaction
+    await Cart.findOneAndUpdate({ userId: orderDoc.userId }, { $set: { items: [] } }, sessionOpts);
+
+    // F. Atomically create EmailOutbox record within the SAME transaction session
+    let resolvedEmail = customerEmail;
+    let resolvedName = customerName;
+
+    if (!resolvedEmail && mongoose.connection?.readyState !== 0 && orderDoc.userId) {
+      const customer = await User.findById(orderDoc.userId, null, sessionOpts).select('name email').lean();
+      if (customer) {
+        resolvedEmail = customer.email;
+        resolvedName = customer.name || resolvedName;
+      }
+    }
+
+    if (resolvedEmail) {
+      await queueOrderConfirmationEmail({
+        order: {
+          ...(orderDoc.toObject ? orderDoc.toObject() : orderDoc),
+          paymentRecord: { razorpayPaymentId }
+        },
+        customerEmail: resolvedEmail,
+        customerName: resolvedName || orderDoc.shippingAddressSnapshot?.fullName,
+        session
+      });
+    }
+
+    return { order: orderDoc, isDuplicate: false, paymentRecord };
+  };
+
+  // 3. Initiate MongoDB multi-document transaction with automatic retry on transient write conflicts
+  const isProduction = config.NODE_ENV === 'production' || process.env.NODE_ENV === 'production';
+  let session = null;
+  let result = null;
+
+  try {
+    const canStartSession =
+      mongoose.connection?.readyState === 1 &&
+      typeof mongoose.connection?.startSession === 'function';
+
+    if (canStartSession) {
+      try {
+        session = await mongoose.connection.startSession();
+      } catch (sessionErr) {
+        if (isProduction) {
+          throw new AppError(
+            'Payment settlement aborted: MongoDB replica set transaction session could not be established in production.',
+            500,
+            'TRANSACTION_UNAVAILABLE'
+          );
+        }
+        session = null;
+      }
+    } else if (isProduction) {
+      throw new AppError(
+        'Payment settlement aborted: MongoDB connection is unavailable or does not support transaction sessions in production.',
+        500,
+        'TRANSACTION_UNSUPPORTED'
+      );
+    }
+
+    if (session && typeof session.withTransaction === 'function') {
+      try {
+        await session.withTransaction(async () => {
+          result = await executeSettlement(session);
+        });
+      } finally {
+        await session.endSession();
+        session = null;
+      }
+    } else {
+      if (isProduction) {
+        throw new AppError(
+          'Payment settlement aborted: Multi-document ACID transactions with withTransaction() are strictly required in production.',
+          500,
+          'TRANSACTION_REQUIRED'
+        );
+      }
+
+      // Development / test fallback only (e.g. standalone MongoDB without replica set in local testing)
+      try {
+        result = await executeSettlement(null);
+      } catch (err) {
+        try {
+          await Payment.findOneAndUpdate(
+            { razorpayOrderId, paymentStatus: 'paid' },
+            { $set: { paymentStatus: 'pending' }, $unset: { razorpayPaymentId: 1, verifiedAt: 1 } }
+          );
+          if (order._id) {
+            await restoreOrderInventory(order, 'settlement_failed');
+            await EmailOutbox.deleteOne({ eventKey: `order_confirmed_paid:${order._id}` });
+          }
+        } catch (compErr) {
+          console.error('[Compensating Rollback Error]:', compErr.message);
+        }
+        throw err;
+      }
+    }
+  } finally {
+    if (session) {
+      try {
+        await session.endSession();
+      } catch {}
+      session = null;
+    }
+  }
+
+  return result;
 };
 
 /**
@@ -133,6 +354,7 @@ export const createRazorpayOrder = async (req, res, next) => {
 /**
  * POST /api/v1/payments/razorpay/verify
  * Verifies Razorpay payment signature using HMAC SHA-256 and updates order to confirmed.
+ * Security: Rejection of invalid signature DOES NOT mutate Payment or Order records to failed.
  */
 export const verifyRazorpayPayment = async (req, res, next) => {
   try {
@@ -182,126 +404,31 @@ export const verifyRazorpayPayment = async (req, res, next) => {
     const isValidSignature = timingSafeCompare(expectedSignature, razorpaySignature);
 
     if (!isValidSignature) {
-      // Mark payment and order as failed
-      await Payment.findOneAndUpdate(
-        { razorpayOrderId },
-        { paymentStatus: 'failed', failureReason: 'Invalid payment signature' }
+      // Security: Invalid signature must not mutate Payment or Order state, nor trigger failure emails.
+      // Record security warning without logging secrets or sensitive client data.
+      console.warn(
+        `[Security Warning] Invalid payment verification signature rejected for order ${order._id} (Razorpay Order: ${razorpayOrderId})`
       );
-      order.paymentStatus = 'failed';
-      await order.save();
-
-      await queuePaymentFailureEmail({
-        order,
-        customerEmail: req.user.email,
-        customerName: req.user.name || order.shippingAddressSnapshot?.fullName,
-        razorpayOrderId,
-        failureReason: 'Invalid payment signature'
-      });
-
       return next(new AppError('Invalid payment verification signature.', 400, 'INVALID_PAYMENT_SIGNATURE'));
     }
 
-    // Pre-flight duplicate check: verify whether razorpayPaymentId is already claimed by another order
-    const existingPaymentWithId = await Payment.findOne({ razorpayPaymentId });
-    if (existingPaymentWithId) {
-      if (existingPaymentWithId.orderId.toString() === order._id.toString()) {
-        // Legitimate idempotent retry for the exact same order
-        return res.status(200).json({
-          success: true,
-          data: {
-            order,
-            paymentStatus: 'paid',
-            isDuplicate: true
-          }
-        });
-      }
-
-      console.error(
-        `[Security Warning] Duplicate Razorpay payment ID ${razorpayPaymentId} attempted for order ${order._id}, but belongs to order ${existingPaymentWithId.orderId}`
-      );
-      return next(
-        new AppError(
-          'This Razorpay payment ID is already associated with another order.',
-          409,
-          'DUPLICATE_PAYMENT_CROSS_ORDER'
-        )
-      );
-    }
-
-    // Deduct inventory atomically with concurrency protection
-    await deductOrderInventory(order);
-
-    // Update Payment record
-    try {
-      await Payment.findOneAndUpdate(
-        { razorpayOrderId },
-        {
-          paymentStatus: 'paid',
-          razorpayPaymentId,
-          razorpaySignature,
-          verifiedAt: new Date()
-        }
-      );
-    } catch (payErr) {
-      if (
-        payErr.code === 11000 &&
-        (payErr.keyPattern?.razorpayPaymentId || payErr.message?.includes('razorpayPaymentId'))
-      ) {
-        const conflictPayment = await Payment.findOne({ razorpayPaymentId });
-        if (conflictPayment && conflictPayment.orderId.toString() === order._id.toString()) {
-          return res.status(200).json({
-            success: true,
-            data: {
-              order,
-              paymentStatus: 'paid',
-              isDuplicate: true
-            }
-          });
-        }
-        return next(
-          new AppError(
-            'This Razorpay payment ID is already associated with another order.',
-            409,
-            'DUPLICATE_PAYMENT_CROSS_ORDER'
-          )
-        );
-      }
-      throw payErr;
-    }
-
-    // Update Order record
-    order.paymentStatus = 'paid';
-    order.orderStatus = 'confirmed';
-    order.statusTimeline.push({
-      status: 'confirmed',
-      timestamp: new Date(),
-      note: `Payment verified via Razorpay. Reference: ${razorpayPaymentId}`
-    });
-
-    await order.save();
-
-    // Atomically consume coupon allocation exactly once with concurrency protection
-    if (order.couponId) {
-      await consumeOrderCoupon(order._id);
-    }
-
-    // Clear customer cart
-    await Cart.findOneAndUpdate({ userId: req.user._id }, { $set: { items: [] } });
-
-    await queueOrderConfirmationEmail({
-      order: {
-        ...(order.toObject ? order.toObject() : order),
-        paymentRecord: { razorpayPaymentId }
-      },
-      customerEmail: req.user.email,
-      customerName: req.user.name || order.shippingAddressSnapshot?.fullName
+    // Atomically settle payment with race condition protection
+    const { order: settledOrder, isDuplicate } = await confirmOrderPayment({
+      order,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      source: 'verify',
+      customerEmail: req.user?.email,
+      customerName: req.user?.name || order.shippingAddressSnapshot?.fullName
     });
 
     res.status(200).json({
       success: true,
       data: {
-        order,
-        message: 'Payment verified and luxury order confirmed.'
+        order: settledOrder,
+        message: isDuplicate ? 'Payment already verified for this order.' : 'Payment verified and luxury order confirmed.',
+        isDuplicate: Boolean(isDuplicate)
       }
     });
   } catch (error) {
@@ -312,6 +439,7 @@ export const verifyRazorpayPayment = async (req, res, next) => {
 /**
  * POST /api/v1/payments/razorpay/failed
  * Records client-side payment failure or cancellation for audit and analytics.
+ * Guarded against overwriting already-paid orders or payments.
  */
 export const recordPaymentFailure = async (req, res, next) => {
   try {
@@ -322,34 +450,54 @@ export const recordPaymentFailure = async (req, res, next) => {
       return next(new AppError('Order not found or ownership mismatch.', 404, 'ORDER_NOT_FOUND'));
     }
 
+    // Guard: Only mark failed if order is not already paid or failed
     if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'failed') {
-      order.paymentStatus = 'failed';
-      await order.save();
-
-      const updateQuery = razorpayOrderId ? { razorpayOrderId } : { orderId: order._id };
-      await Payment.findOneAndUpdate(
-        updateQuery,
+      const updatedOrder = await Order.findOneAndUpdate(
         {
-          paymentStatus: 'failed',
-          failureReason: errorDescription || 'Payment cancelled or declined on client'
-        }
+          _id: order._id,
+          paymentStatus: { $nin: ['paid', 'failed'] }
+        },
+        {
+          $set: { paymentStatus: 'failed' },
+          $push: {
+            statusTimeline: {
+              status: 'failed',
+              timestamp: new Date(),
+              note: `Payment failed: ${errorDescription || 'Client cancellation'}`
+            }
+          }
+        },
+        { new: true }
       );
 
-      await queuePaymentFailureEmail({
-        order,
-        customerEmail: req.user.email,
-        customerName: req.user.name || order.shippingAddressSnapshot?.fullName,
-        razorpayOrderId,
-        failureReason: errorDescription || 'Payment cancelled or declined on client'
-      });
+      if (updatedOrder) {
+        const updateQuery = razorpayOrderId ? { razorpayOrderId } : { orderId: order._id };
+        await Payment.findOneAndUpdate(
+          { ...updateQuery, paymentStatus: { $ne: 'paid' } },
+          {
+            paymentStatus: 'failed',
+            failureReason: errorDescription || 'Payment cancelled or declined on client'
+          }
+        );
+
+        await queuePaymentFailureEmail({
+          order: updatedOrder,
+          customerEmail: req.user.email,
+          customerName: req.user.name || order.shippingAddressSnapshot?.fullName,
+          razorpayOrderId,
+          failureReason: errorDescription || 'Payment cancelled or declined on client'
+        });
+      }
     }
+
+    const currentOrder = (await Order.findById(order._id)) || order;
 
     res.status(200).json({
       success: true,
       data: {
         message: 'Payment failure recorded.',
-        orderNumber: order.orderNumber,
-        paymentStatus: order.paymentStatus
+        orderNumber: currentOrder.orderNumber,
+        paymentStatus: currentOrder.paymentStatus
       }
     });
   } catch (error) {
@@ -361,7 +509,7 @@ export const recordPaymentFailure = async (req, res, next) => {
  * POST /api/v1/payments/webhook
  * POST /api/v1/payments/razorpay/webhook
  * Idempotent Razorpay Webhook processor verifying signature with raw request body.
- * Handles payment.captured, order.paid, and payment.failed events.
+ * Handles payment.captured, order.paid, and payment.failed events with race condition protection.
  */
 export const handleRazorpayWebhook = async (req, res, next) => {
   try {
@@ -378,14 +526,24 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       });
     }
 
-    // Webhook secret validation (fail safely on missing, whitespace, or placeholder secret)
+    // Webhook secret validation: reject missing, whitespace, placeholder, or URL-shaped secrets
     const webhookSecret = config.RAZORPAY_WEBHOOK_SECRET;
+    const isUrlShaped =
+      typeof webhookSecret === 'string' &&
+      (webhookSecret.startsWith('http://') ||
+       webhookSecret.startsWith('https://') ||
+       webhookSecret.includes('://'));
+
     if (
       !webhookSecret ||
       typeof webhookSecret !== 'string' ||
       !webhookSecret.trim() ||
-      webhookSecret === 'rzp_webhook_secret_placeholder'
+      webhookSecret === 'rzp_webhook_secret_placeholder' ||
+      isUrlShaped
     ) {
+      console.error(
+        '[Security Error] Razorpay webhook rejected: RAZORPAY_WEBHOOK_SECRET is misconfigured (missing, placeholder, or mistakenly set to a URL instead of a shared secret token).'
+      );
       return res.status(500).json({
         success: false,
         error: 'Webhook service misconfigured'
@@ -414,68 +572,14 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       if (razorpayOrderId) {
         const paymentRecord = await Payment.findOne({ razorpayOrderId });
         if (paymentRecord && paymentRecord.paymentStatus !== 'paid') {
-          // Pre-check: Detect whether razorpayPaymentId is already claimed by a different order
-          if (razorpayPaymentId && razorpayPaymentId !== 'pay_webhook_verified') {
-            const conflictPayment = await Payment.findOne({ razorpayPaymentId });
-            if (conflictPayment && conflictPayment._id.toString() !== paymentRecord._id.toString()) {
-              console.error(
-                `[Webhook Security Warning] Webhook payment ID ${razorpayPaymentId} already claimed by order ${conflictPayment.orderId}, cannot apply to order ${paymentRecord.orderId}`
-              );
-              return res.status(200).json({
-                status: 'ignored_cross_order_conflict',
-                message: 'Payment ID already associated with another transaction'
-              });
-            }
-          }
-
           const order = await Order.findById(paymentRecord.orderId);
           if (order && order.paymentStatus !== 'paid' && order.orderStatus !== 'cancelled') {
-            await deductOrderInventory(order);
-
-            paymentRecord.paymentStatus = 'paid';
-            paymentRecord.razorpayPaymentId = razorpayPaymentId;
-            paymentRecord.verifiedAt = new Date();
-            try {
-              await paymentRecord.save();
-            } catch (saveErr) {
-              if (
-                saveErr.code === 11000 &&
-                (saveErr.keyPattern?.razorpayPaymentId || saveErr.message?.includes('razorpayPaymentId'))
-              ) {
-                console.error(
-                  `[Webhook Warning] Duplicate razorpayPaymentId ${razorpayPaymentId} caught during concurrent webhook execution.`
-                );
-                return res.status(200).json({ status: 'ok', note: 'duplicate_payment_handled' });
-              }
-              throw saveErr;
-            }
-
-            order.paymentStatus = 'paid';
-            order.orderStatus = 'confirmed';
-            order.statusTimeline.push({
-              status: 'confirmed',
-              timestamp: new Date(),
-              note: `Payment confirmed via webhook (${eventType}: ${razorpayPaymentId})`
+            await confirmOrderPayment({
+              order,
+              razorpayOrderId,
+              razorpayPaymentId,
+              source: `webhook_${eventType}`
             });
-            await order.save();
-
-            if (order.couponId) {
-              await consumeOrderCoupon(order._id);
-            }
-
-            await Cart.findOneAndUpdate({ userId: order.userId }, { $set: { items: [] } });
-
-            const customer = await User.findById(order.userId).select('name email').lean();
-            if (customer) {
-              await queueOrderConfirmationEmail({
-                order: {
-                  ...(order.toObject ? order.toObject() : order),
-                  paymentRecord: { razorpayPaymentId }
-                },
-                customerEmail: customer.email,
-                customerName: customer.name || order.shippingAddressSnapshot?.fullName
-              });
-            }
           }
         }
       }
@@ -485,18 +589,33 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       const errorDescription = paymentEntity?.error_description || 'Payment failed';
 
       if (razorpayOrderId) {
+        // Atomic guard: NEVER overwrite an already-paid payment!
         const paymentRecord = await Payment.findOneAndUpdate(
-          { razorpayOrderId },
+          { razorpayOrderId, paymentStatus: { $ne: 'paid' } },
           { paymentStatus: 'failed', failureReason: errorDescription },
           { new: true }
         );
 
         if (paymentRecord) {
-          const order = await Order.findById(paymentRecord.orderId);
-          if (order && order.paymentStatus !== 'paid' && order.paymentStatus !== 'failed') {
-            order.paymentStatus = 'failed';
-            await order.save();
+          const order = await Order.findOneAndUpdate(
+            {
+              _id: paymentRecord.orderId,
+              paymentStatus: { $nin: ['paid', 'failed'] }
+            },
+            {
+              $set: { paymentStatus: 'failed' },
+              $push: {
+                statusTimeline: {
+                  status: 'failed',
+                  timestamp: new Date(),
+                  note: `Payment failed via webhook: ${errorDescription}`
+                }
+              }
+            },
+            { new: true }
+          );
 
+          if (order) {
             const customer = await User.findById(order.userId).select('name email').lean();
             if (customer) {
               await queuePaymentFailureEmail({

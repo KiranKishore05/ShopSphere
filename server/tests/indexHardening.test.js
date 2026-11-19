@@ -228,6 +228,26 @@ describe('Phase 9: Index Hardening & Safety Corrections Suite', () => {
 
       expect(verifyOrderConsistency(baseOrder, requestedPayload)).toBe(false);
     });
+
+    it('accepts sequential duplicate request when cart is already cleared (itemsSnapshot omitted)', () => {
+      const requestedPayload = {
+        paymentMethod: 'cod',
+        couponCode: 'ATELIER10',
+        resolvedAddress: { ...baseAddress }
+      };
+
+      expect(verifyOrderConsistency(baseOrder, requestedPayload)).toBe(true);
+    });
+
+    it('rejects sequential duplicate request when couponCode differs as string', () => {
+      const requestedPayload = {
+        paymentMethod: 'cod',
+        couponCode: 'WRONGCOUPON',
+        resolvedAddress: { ...baseAddress }
+      };
+
+      expect(verifyOrderConsistency(baseOrder, requestedPayload)).toBe(false);
+    });
   });
 
   describe('4. Migration Crash Recovery State Inspection', () => {

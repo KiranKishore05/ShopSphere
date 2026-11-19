@@ -281,6 +281,91 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       expect(res2.body.data.order.orderNumber).toBe(originalOrderNumber);
     });
 
+    it('should handle sequential retry with same idempotencyKey after COD cart clearing without 400 CART_EMPTY', async () => {
+      const idempotencyKey = 'idem-cod-sequential-key-999';
+
+      // Put in-stock item in cart
+      await Cart.findOneAndUpdate(
+        { userId: customerUser._id },
+        {
+          $set: {
+            items: [{
+              productId: inStockProduct._id,
+              variantSku: 'MSH-LIN-OLV-M',
+              quantity: 1,
+              addedAt: new Date()
+            }]
+          }
+        },
+        { upsert: true }
+      );
+
+      // Initial COD checkout (clears cart upon success)
+      const res1 = await request(app)
+        .post('/api/v1/orders/checkout')
+        .set('Cookie', customerCookie)
+        .send({
+          addressId: savedAddressId,
+          paymentMethod: 'cod',
+          idempotencyKey
+        });
+
+      expect(res1.status).toBe(201);
+      const originalOrderNumber = res1.body.data.order.orderNumber;
+
+      // Verify cart is now empty
+      const emptyCartCheck = await Cart.findOne({ userId: customerUser._id });
+      expect(emptyCartCheck.items.length).toBe(0);
+
+      // Sequential duplicate call with same key after cart was cleared
+      const res2 = await request(app)
+        .post('/api/v1/orders/checkout')
+        .set('Cookie', customerCookie)
+        .send({
+          addressId: savedAddressId,
+          paymentMethod: 'cod',
+          idempotencyKey
+        });
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.isDuplicate).toBe(true);
+      expect(res2.body.data.order.orderNumber).toBe(originalOrderNumber);
+    });
+
+    it('should reject idempotencyKey reuse with mismatched payload with 409 Conflict', async () => {
+      const idempotencyKey = 'idem-cod-sequential-key-999';
+
+      // Call with same key but different payment method
+      const res = await request(app)
+        .post('/api/v1/orders/checkout')
+        .set('Cookie', customerCookie)
+        .send({
+          addressId: savedAddressId,
+          paymentMethod: 'razorpay', // Mismatched payment method!
+          idempotencyKey
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('IDEMPOTENCY_PAYLOAD_MISMATCH');
+    });
+
+    it('should reject idempotencyKey reuse by another customer with 409 Conflict', async () => {
+      const idempotencyKey = 'idem-cod-sequential-key-999';
+
+      // Other customer calls with first customer's key
+      const res = await request(app)
+        .post('/api/v1/orders/checkout')
+        .set('Cookie', otherCustomerCookie)
+        .send({
+          addressId: savedAddressId,
+          paymentMethod: 'cod',
+          idempotencyKey
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('IDEMPOTENCY_KEY_IN_USE');
+    });
+
     it('should reject COD if order total exceeds ₹20,000', async () => {
       // Put expensive evening gown (₹25,000) in cart
       await Cart.findOneAndUpdate(
