@@ -43,6 +43,11 @@ const OrderDetailPage = React.lazy(() => import('./pages/OrderDetailPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const AddressesPage = React.lazy(() => import('./pages/AddressesPage'));
 
+// Lazy-Loaded Brand & Policy Routes
+const AboutPage = React.lazy(() => import('./pages/AboutPage'));
+const ContactPage = React.lazy(() => import('./pages/ContactPage'));
+const PolicyPage = React.lazy(() => import('./pages/PolicyPage'));
+
 function AtelierLoadingFallback() {
   return (
     <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
@@ -204,6 +209,14 @@ export default function App() {
             {/* Customer Shopping Routes */}
             <Route path="/cart" element={<CartPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
+
+            {/* Brand, Concierge & Customer Care Routes */}
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/shipping-policy" element={<PolicyPage />} />
+            <Route path="/returns-policy" element={<PolicyPage />} />
+            <Route path="/privacy" element={<PolicyPage />} />
+            <Route path="/terms" element={<PolicyPage />} />
 
             {/* Protected Customer Checkout Routes */}
             <Route element={<ProtectedRoute />}>

@@ -858,3 +858,234 @@ describe('Phase 6.4C: SEC-05 Razorpay Webhook Raw-Body & Secret Security Suite',
     expect(res.body.status).toBe('ok');
   });
 });
+
+describe('Phase 2: Payment Security, Verification & Backend Mock Flow Suite', () => {
+  const userId = new mongoose.Types.ObjectId();
+  const otherUserId = new mongoose.Types.ObjectId();
+  const sampleOrderId = new mongoose.Types.ObjectId();
+  const sampleRzpOrderId = 'order_test_mock_123';
+  const customerToken = generateToken({ id: userId, email: 'customer@shopsphere.test', role: 'customer' });
+  const otherCustomerToken = generateToken({ id: otherUserId, email: 'attacker@shopsphere.test', role: 'customer' });
+
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
+  const mockUser = {
+    _id: userId,
+    name: 'Verified Customer',
+    email: 'customer@shopsphere.test',
+    role: 'customer',
+    isActive: true
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(1);
+
+    vi.spyOn(User, 'findById').mockImplementation(async (id) => {
+      if (id?.toString() === userId.toString()) return mockUser;
+      if (id?.toString() === otherUserId.toString()) {
+        return { _id: otherUserId, name: 'Attacker', email: 'attacker@shopsphere.test', role: 'customer', isActive: true };
+      }
+      return null;
+    });
+  });
+
+  describe('POST /api/v1/payments/razorpay/mock-complete (Backend-Only Development Flow)', () => {
+    it('should complete mock payment successfully in development/test environment', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        orderNumber: 'SPH-MOCK-001',
+        userId: userId,
+        orderStatus: 'pending_payment',
+        paymentStatus: 'pending',
+        paymentMethod: 'razorpay',
+        total: 5000,
+        items: [],
+        statusTimeline: [],
+        save: vi.fn().mockResolvedValue(true)
+      };
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      vi.spyOn(Payment, 'findOne').mockImplementation((query) => {
+        if (query?.razorpayOrderId === sampleRzpOrderId) {
+          return Promise.resolve({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId });
+        }
+        return Promise.resolve(null);
+      });
+      vi.spyOn(Payment, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
+      vi.spyOn(Cart, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/mock-complete')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockOrder.paymentStatus).toBe('paid');
+      expect(mockOrder.orderStatus).toBe('confirmed');
+    });
+
+    it('should strictly disallow mock payment in production environment with 403', async () => {
+      const origEnv = config.NODE_ENV;
+      config.NODE_ENV = 'production';
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/mock-complete')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId
+        });
+
+      config.NODE_ENV = origEnv;
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('MOCK_PAYMENT_DISABLED');
+    });
+
+    it('should reject mock payment if order does not belong to user (unauthorized attempt)', async () => {
+      vi.spyOn(Order, 'findOne').mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/mock-complete')
+        .set('Cookie', `token=${otherCustomerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('ORDER_NOT_FOUND');
+    });
+
+    it('should reject mock payment if order is already cancelled', async () => {
+      const cancelledOrder = {
+        _id: sampleOrderId,
+        userId: userId,
+        orderStatus: 'cancelled'
+      };
+      vi.spyOn(Order, 'findOne').mockResolvedValue(cancelledOrder);
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/mock-complete')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('ORDER_CANCELLED');
+    });
+  });
+
+  describe('POST /api/v1/payments/razorpay/verify (Signature & Idempotency)', () => {
+    it('should reject invalid signature with 400 INVALID_PAYMENT_SIGNATURE', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        userId: userId,
+        orderStatus: 'pending_payment',
+        paymentStatus: 'pending',
+        save: vi.fn().mockResolvedValue(true)
+      };
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      vi.spyOn(Payment, 'findOne').mockResolvedValue({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId });
+      vi.spyOn(Payment, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId,
+          razorpayPaymentId: 'pay_tampered_123',
+          razorpaySignature: 'invalid_hex_signature_not_matching_hmac'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_PAYMENT_SIGNATURE');
+    });
+
+    it('should reject duplicate payment ID associated with another order with 409', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        userId: userId,
+        orderStatus: 'pending_payment',
+        paymentStatus: 'pending',
+        save: vi.fn().mockResolvedValue(true)
+      };
+
+      const validSig = crypto
+        .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+        .update(`${sampleRzpOrderId}|pay_cross_order_123`)
+        .digest('hex');
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      vi.spyOn(Payment, 'findOne').mockImplementation((query) => {
+        if (query?.orderId) {
+          return Promise.resolve({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId });
+        }
+        if (query?.razorpayPaymentId === 'pay_cross_order_123') {
+          return Promise.resolve({
+            orderId: new mongoose.Types.ObjectId(), // Belongs to ANOTHER order!
+            razorpayPaymentId: 'pay_cross_order_123'
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId,
+          razorpayPaymentId: 'pay_cross_order_123',
+          razorpaySignature: validSig
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('DUPLICATE_PAYMENT_CROSS_ORDER');
+    });
+
+    it('should return 200 idempotent response when order is already confirmed and paid', async () => {
+      const mockOrder = {
+        _id: sampleOrderId,
+        userId: userId,
+        orderStatus: 'confirmed',
+        paymentStatus: 'paid'
+      };
+
+      vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
+      vi.spyOn(Payment, 'findOne').mockResolvedValue({ orderId: sampleOrderId, razorpayOrderId: sampleRzpOrderId });
+
+      const res = await request(app)
+        .post('/api/v1/payments/razorpay/verify')
+        .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
+        .send({
+          orderId: sampleOrderId.toString(),
+          razorpayOrderId: sampleRzpOrderId,
+          razorpayPaymentId: 'pay_existing_123',
+          razorpaySignature: 'any_signature'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.message).toContain('already verified');
+    });
+  });
+});

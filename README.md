@@ -58,9 +58,10 @@ ShopSphere is actively under development. Core customer storefront flows, multi-
 
 | Domain | Implemented Capabilities |
 | :--- | :--- |
-| **Authentication & Profile** | Customer registration, login, logout, profile update (`name`, `phone`), and address book management (with single-default address enforcement). |
+| **Authentication & Profile** | Customer registration, login, logout, profile update (`name`, `phone`), and address book management (with single-default address enforcement). Account-level lockout protection (`SEC-06-02`) after 5 consecutive failed login attempts with a 15-minute lock window, and strict password complexity validation (`SEC-06-04`) requiring uppercase, lowercase, numeric, and special characters. |
 | **Session & Password Security** | HTTP-only cookie JWT sessions; immediate session invalidation on password reset (`SEC-06-01`) enforcing a fail-closed same-second timestamp boundary (`decoded.iat <= passwordChangedSeconds`); single-use SHA-256 password reset tokens with AES-256-GCM outbox encryption. |
-| **Catalog & Discovery** | Multi-faceted product browsing, live search autocomplete, category filtering (Men, Women, Kids), price sorting, stock filtering, and single-product detail page with dynamic variant selectors (color, size, SKU). |
+| **Catalog & Discovery** | Multi-faceted product browsing, live search autocomplete, category filtering (Men, Women, Kids), price sorting, stock filtering, single-product detail page with dynamic variant selectors (color, size, SKU), and optimized single-query category aggregations eliminating N+1 database loops. |
+| **Brand & Customer Care** | Dedicated atelier heritage showcase (`/about`), interactive concierge customer care portal with client-side inquiry validation (`/contact`), and comprehensive customer policy suites (`/shipping-policy`, `/returns-policy`, `/privacy`, `/terms`). |
 | **Cart & Wishlist** | Server-authoritative cart with availability checks, quantity updates, item removal, and persistent customer wishlist management. |
 | **Checkout & Pricing** | Automated server-side calculation of subtotals, inclusive luxury taxes, coupon deductions, and tiered shipping thresholds (free shipping qualification). |
 | **Payment Integration** | Razorpay digital order creation (`INR`), client-side payment modal flow, and server-side HMAC SHA-256 payment signature verification (*Verified locally in Test Mode with mock/test credentials; live payment gateway activation pending*). Cash on Delivery (COD) with configurable threshold limits (₹20,000 maximum). |
@@ -80,8 +81,6 @@ ShopSphere is actively under development. Core customer storefront flows, multi-
 
 ### Planned Features
 
-- Account-level lockout protection against distributed credential stuffing (SEC-06-02).
-- Password character diversity complexity policy enforcement (SEC-06-04).
 - Faceted catalog filtering by fabric, weave, occasion, and seasonal collection.
 - Real-time customer delivery updates via SMS or WhatsApp gateway.
 - Multi-currency pricing engine (USD, EUR, GBP) for international shipping.
@@ -455,17 +454,27 @@ npm run test:client
 
 ### Verified Test Suites
 
-The backend test suite includes targeted unit and integration suites covering:
-- **Security & Hardening**: `server/tests/security.test.js` (51 tests passed — environment validation, session invalidation, same-second precision boundaries, rate-limiting, and error log masking).
-- **CSRF Defense**: `server/tests/csrf.test.js` (27 tests passed — origin validation, header requirements, Bearer vs Cookie policies).
-- **Payment & Webhooks**: `server/tests/payment.test.js` (10 tests passed in SEC-05 raw-body buffer suite; 12 live-DB dependent tests skipped without local MongoDB).
-- **Transactional Outbox**: `server/tests/authEmailIntegration.test.js` (12 tests passed) & `server/tests/orderEmailIntegration.test.js` (25 tests passed) (outbox queueing, token encryption, and template rendering).
-- **Administrative Operations**: `server/tests/adminProduct.test.js` (9 tests passed — catalog operations and role guards).
+The test suites include comprehensive unit, integration, and mock suites covering:
+- **Frontend SPA Suite**: 10 test files (89 tests passed) in `client/src` covering routing guards, catalog interactions, shopping bag, checkout experience, customer orders, reviews, and admin views.
+- **Security & Hardening**: `server/tests/security.test.js` (57 tests passed — environment validation, session invalidation, same-second precision boundaries, rate-limiting, error log masking, SEC-06-02 account lockout, and SEC-06-04 password complexity).
+- **CSRF Defense**: `server/tests/csrf.test.js` (27 tests passed — origin validation, custom header requirements, Bearer vs Cookie policies).
+- **Payment & Webhooks**: `server/tests/payment.test.js` (17 tests passed across SEC-05 raw-body buffer validation and backend-only mock payment flow; 12 live-DB dependent tests skipped without local MongoDB).
+- **Transactional Outbox & Worker Reliability**: `server/tests/emailWorkerReliability.test.js` (21 tests passed), `server/tests/authEmailIntegration.test.js` (12 tests passed), `server/tests/orderEmailIntegration.test.js` (25 tests passed), and `server/tests/emailOutbox.test.js` (32 tests passed).
+- **Administrative Operations & Governance**:
+  - `server/tests/adminCoupon.test.js` (24 tests passed — coupon CRUD, limits, and safe cancellation release).
+  - `server/tests/adminOrder.test.js` (16 tests passed — fulfillment state transitions and inventory safety).
+  - `server/tests/adminCategory.test.js` (12 tests passed — category management and product link protection).
+  - `server/tests/adminCustomer.test.js` (10 tests passed — account status toggles and admin self-protection).
+  - `server/tests/adminInventory.test.js` (10 tests passed — stock adjustment safety and audit trail).
+  - `server/tests/adminProduct.test.js` (9 tests passed — catalog operations, Cloudinary, and role guards).
+  - `server/tests/adminAnalytics.test.js` (6 tests passed — KPI aggregation).
+
+Over **428 automated tests** are verified across frontend and backend workspaces.
 
 > [!IMPORTANT]
 > **MongoDB Dependency & Test Execution Limitation**:
-> - Integration test suites that establish direct database connections (specifically `server/tests/auth.test.js`) require a running local MongoDB instance on `mongodb://localhost:27017` and will fail or time out if the MongoDB service is unavailable.
-> - In contrast, unit and mock-backed suites (`server/tests/security.test.js`, `server/tests/csrf.test.js`, `server/tests/payment.test.js`, `server/tests/authEmailIntegration.test.js`, `server/tests/orderEmailIntegration.test.js`, and `server/tests/adminProduct.test.js`) mock database operations or execute independently of an active MongoDB daemon.
+> - Integration test suites that establish direct database connections (`auth.test.js`, `cart.test.js`, `checkout.test.js`, `review.test.js`, `catalog.test.js`, `coupon.test.js`, `wishlist.test.js`, and `address.test.js`) require a running local MongoDB instance on `mongodb://localhost:27017` and fail with `ECONNREFUSED` if the MongoDB daemon is offline.
+> - In contrast, 21 unit and mock-backed test suites (including `security.test.js`, `csrf.test.js`, `payment.test.js`, `emailWorkerReliability.test.js`, `orderEmailIntegration.test.js`, and all admin suites) mock database operations and execute completely independently of an active MongoDB daemon.
 
 ---
 

@@ -35,7 +35,7 @@ export default function Footer() {
             </p>
             <div className="pt-1 text-xs text-[#827E77] flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>100% Genuine Quality • Verified Indian Brand</span>
+              <span>Premium Quality • Contemporary Indian Fashion</span>
             </div>
           </div>
 
@@ -55,6 +55,7 @@ export default function Footer() {
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#161513] mb-3">Customer Care</h4>
             <ul className="space-y-2 text-xs text-[#4B4843]">
+              <li><Link to="/about" className="hover:text-[#161513] transition-colors">Our Story & Heritage</Link></li>
               <li><Link to="/account/orders" className="hover:text-[#161513] transition-colors">Track Order</Link></li>
               <li><Link to="/shipping-policy" className="hover:text-[#161513] transition-colors">Shipping Policy</Link></li>
               <li><Link to="/returns-policy" className="hover:text-[#161513] transition-colors">Easy Returns & Exchanges</Link></li>

@@ -18,6 +18,11 @@ describe('Phase 5.6: Admin Customer Management Suite (/api/v1/admin/customers)',
   const adminToken = generateToken({ id: adminId, email: 'admin@shopsphere.com', role: 'admin' });
   const customerToken = generateToken({ id: customerId, email: 'customer@shopsphere.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   const mockCustomer = {
     _id: customerId,
     name: 'Ananya Sharma',
@@ -249,6 +254,7 @@ describe('Phase 5.6: Admin Customer Management Suite (/api/v1/admin/customers)',
       const res = await request(app)
         .patch(`/api/v1/admin/customers/${customerId}/status`)
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({ isActive: false, reason: 'Suspicious checkout attempts' });
 
       expect(res.status).toBe(200);
@@ -261,6 +267,7 @@ describe('Phase 5.6: Admin Customer Management Suite (/api/v1/admin/customers)',
       const res = await request(app)
         .patch(`/api/v1/admin/customers/${adminId}/status`)
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({ isActive: false });
 
       expect(res.status).toBe(400);
@@ -271,6 +278,7 @@ describe('Phase 5.6: Admin Customer Management Suite (/api/v1/admin/customers)',
       const res = await request(app)
         .patch(`/api/v1/admin/customers/${otherAdminId}/status`)
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({ isActive: false });
 
       expect(res.status).toBe(403);

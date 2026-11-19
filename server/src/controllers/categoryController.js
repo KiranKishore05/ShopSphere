@@ -19,19 +19,17 @@ export const getCategories = async (req, res, next) => {
       'kids-clothing'
     ];
 
-    // Attach real live product counts for each category
-    const categoriesWithCount = await Promise.all(
-      categories.map(async (cat) => {
-        const productCount = await Product.countDocuments({
-          categoryId: cat._id,
-          isActive: true
-        });
-        return {
-          ...cat,
-          productCount
-        };
-      })
-    );
+    // Attach real live product counts for each category using a single aggregation query (resolves N+1 query AUD-PERF-01)
+    const counts = await Product.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$categoryId', count: { $sum: 1 } } }
+    ]);
+    const countMap = new Map(counts.map(c => [c._id ? c._id.toString() : '', c.count]));
+
+    const categoriesWithCount = categories.map((cat) => ({
+      ...cat,
+      productCount: countMap.get(cat._id.toString()) || 0
+    }));
 
     // Sort according to preferred order, with any extras sorted alphabetically
     categoriesWithCount.sort((a, b) => {

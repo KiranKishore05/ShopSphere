@@ -22,7 +22,7 @@ import { useAddresses } from '../hooks/useAddresses';
 import { useAuth } from '../hooks/useAuth';
 import { useCheckout } from '../hooks/useOrders';
 import { useApplyCoupon } from '../hooks/useCoupons';
-import { createRazorpayOrder, verifyRazorpayPayment, recordPaymentFailure } from '../services/paymentService';
+import { createRazorpayOrder, verifyRazorpayPayment, recordPaymentFailure, mockCompletePayment } from '../services/paymentService';
 import SEO from '../components/common/SEO';
 
 export default function CheckoutPage() {
@@ -290,27 +290,10 @@ export default function CheckoutPage() {
     const { order, rzpOrderData } = testModalData;
 
     try {
-      const mockPaymentId = `pay_mock_${Date.now()}`;
-      const payload = `${rzpOrderData.razorpayOrderId}|${mockPaymentId}`;
-      
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode('placeholder_razorpay_secret_key');
-      const cryptoKey = await window.crypto.subtle.importKey(
-        'raw',
-        keyData,
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-      const signatureBuffer = await window.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(payload));
-      const hashArray = Array.from(new Uint8Array(signatureBuffer));
-      const mockSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      await verifyRazorpayPayment({
+      // Safe backend-only mock payment: no secrets or HMAC computation on the client
+      await mockCompletePayment({
         orderId: order._id,
-        razorpayOrderId: rzpOrderData.razorpayOrderId,
-        razorpayPaymentId: mockPaymentId,
-        razorpaySignature: mockSignature
+        razorpayOrderId: rzpOrderData.razorpayOrderId
       });
 
       setTestModalData(null);

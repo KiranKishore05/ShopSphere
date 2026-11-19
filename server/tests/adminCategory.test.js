@@ -15,6 +15,11 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
   const adminToken = generateToken({ id: adminId, email: 'admin@shopsphere.com', role: 'admin' });
   const customerToken = generateToken({ id: customerId, email: 'customer@shopsphere.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(1);
@@ -164,6 +169,7 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
       const res = await request(app)
         .post('/api/v1/admin/categories')
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           name: 'Resort & Swimwear',
           description: 'Mediterranean beachside silhouettes',
@@ -186,6 +192,7 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
       const res = await request(app)
         .post('/api/v1/admin/categories')
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           name: 'shirts', // lowercase collision with existing 'Shirts'
           description: 'Shirting collection'
@@ -205,6 +212,7 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
       const res = await request(app)
         .post('/api/v1/admin/categories')
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           name: 'Unique Department',
           slug: 'taken-slug'
@@ -233,6 +241,7 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
       const res = await request(app)
         .patch(`/api/v1/admin/categories/${sampleCategoryId}`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           description: 'Updated heritage profile',
           isActive: false // Deactivate category safely
@@ -261,6 +270,7 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
       const res = await request(app)
         .patch(`/api/v1/admin/categories/${sampleCategoryId}`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           name: 'Kids Clothing'
         });
@@ -285,7 +295,8 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
 
       const res = await request(app)
         .delete(`/api/v1/admin/categories/${sampleCategoryId}`)
-        .set('Cookie', `token=${adminToken}`);
+        .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders);
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -307,7 +318,8 @@ describe('Phase 5.3: Admin Category Management Suite (/api/v1/admin/categories)'
 
       const res = await request(app)
         .delete(`/api/v1/admin/categories/${sampleCategoryId}`)
-        .set('Cookie', `token=${adminToken}`);
+        .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

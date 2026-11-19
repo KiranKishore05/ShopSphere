@@ -25,6 +25,11 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
   const adminToken = generateToken({ id: adminId, email: 'admin@shopsphere.com', role: 'admin' });
   const customerToken = generateToken({ id: customerId, email: 'customer@shopsphere.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   beforeEach(() => {
     mockRestoreOrderInventory.mockClear();
     mockDeductOrderInventory.mockClear();
@@ -257,6 +262,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'processing',
           note: 'Allocated to master tailor for packing'
@@ -283,6 +289,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'shipped'
           // Missing carrierName and trackingNumber!
@@ -308,6 +315,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'shipped',
           carrierName: 'BlueDart Express',
@@ -337,6 +345,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'delivered',
           note: 'Delivered and cash collected'
@@ -362,6 +371,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'confirmed'
         });
@@ -386,6 +396,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'confirmed'
         });
@@ -413,6 +424,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'cancelled',
           cancellationReason: 'Client request'
@@ -441,6 +453,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'cancelled',
           cancellationReason: 'Customer changed delivery address'
@@ -469,6 +482,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'cancelled',
           cancellationReason: 'Payment window expired'
@@ -498,6 +512,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res1 = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'return_requested',
           note: 'Customer initiated return request'
@@ -510,6 +525,7 @@ describe('Phase 5.4: Admin Order Management & Safety Suite (/api/v1/admin/orders
       const res2 = await request(app)
         .patch(`/api/v1/admin/orders/${sampleOrderId}/status`)
         .set('Cookie', `token=${adminToken}`)
+        .set(csrfHeaders)
         .send({
           orderStatus: 'returned',
           note: 'Garment inspected and restocked in atelier'

@@ -10,6 +10,11 @@ export const verifyRazorpayPayment = async (verificationPayload) => {
   return res.data?.order || res.order || res.data;
 };
 
+export const mockCompletePayment = async (mockPayload) => {
+  const res = await api.post('/payments/razorpay/mock-complete', mockPayload);
+  return res.data?.order || res.order || res.data;
+};
+
 export const recordPaymentFailure = async (failurePayload) => {
   try {
     const res = await api.post('/payments/razorpay/failed', failurePayload);

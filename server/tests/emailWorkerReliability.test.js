@@ -27,6 +27,11 @@ describe('Phase 9 Stage 3.5: Transactional Email Reliability & Outage Resilience
   const sampleProductId = new mongoose.Types.ObjectId();
   const customerToken = generateToken({ id: customerId, email: 'tara@domain.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   const mockCustomer = {
     _id: customerId,
     name: 'Tara Patel',
@@ -624,6 +629,7 @@ describe('Phase 9 Stage 3.5: Transactional Email Reliability & Outage Resilience
       const res = await request(app)
         .post('/api/v1/orders/checkout')
         .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
         .send({
           addressId: mockCustomer.savedAddresses[0]._id.toString(),
           paymentMethod: 'cod'
@@ -659,9 +665,14 @@ describe('Phase 9 Stage 3.5: Transactional Email Reliability & Outage Resilience
       };
 
       vi.spyOn(Order, 'findOne').mockResolvedValue(mockOrder);
-      vi.spyOn(Payment, 'findOne').mockResolvedValue({
-        orderId: sampleOrderId,
-        razorpayOrderId: 'order_rzp_nb_01'
+      vi.spyOn(Payment, 'findOne').mockImplementation((query) => {
+        if (query?.razorpayOrderId) {
+          return Promise.resolve({
+            orderId: sampleOrderId,
+            razorpayOrderId: 'order_rzp_nb_01'
+          });
+        }
+        return Promise.resolve(null);
       });
       vi.spyOn(Payment, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
       vi.spyOn(Cart, 'findOneAndUpdate').mockResolvedValue({ acknowledged: true });
@@ -675,6 +686,7 @@ describe('Phase 9 Stage 3.5: Transactional Email Reliability & Outage Resilience
       const res = await request(app)
         .post('/api/v1/payments/razorpay/verify')
         .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
         .send({
           orderId: sampleOrderId.toString(),
           razorpayOrderId: 'order_rzp_nb_01',
@@ -739,6 +751,7 @@ describe('Phase 9 Stage 3.5: Transactional Email Reliability & Outage Resilience
       const res = await request(app)
         .post('/api/v1/orders/checkout')
         .set('Cookie', `token=${customerToken}`)
+        .set(csrfHeaders)
         .send({
           addressId: mockCustomer.savedAddresses[0]._id.toString(),
           paymentMethod: 'cod'

@@ -172,7 +172,7 @@ export const verifyRazorpayPayment = async (req, res, next) => {
       });
     }
 
-    // Compute expected HMAC SHA-256 signature
+    // Compute expected HMAC SHA-256 signature using the server-side Razorpay secret
     const signaturePayload = `${razorpayOrderId}|${razorpayPaymentId}`;
     const expectedSignature = crypto
       .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
@@ -513,6 +513,68 @@ export const handleRazorpayWebhook = async (req, res, next) => {
     }
 
     res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/payments/razorpay/mock-complete
+ * Safe backend-only mock payment completion for local development and test mode.
+ * Strictly blocked in production. Generates mock payment ID and computes HMAC signature server-side.
+ */
+export const mockCompletePayment = async (req, res, next) => {
+  try {
+    // 1. Strict production block: Never allow mock payment in production environment
+    if (config.NODE_ENV === 'production') {
+      return next(new AppError('Mock payment is strictly disabled in production environments.', 403, 'MOCK_PAYMENT_DISABLED'));
+    }
+
+    // 2. Validate test/development mode with placeholder key
+    if (!config.RAZORPAY_KEY_ID.includes('placeholder') && config.NODE_ENV !== 'test' && config.NODE_ENV !== 'development') {
+      return next(new AppError('Mock payment is only permitted when Razorpay placeholder keys are active.', 403, 'MOCK_PAYMENT_NOT_PERMITTED'));
+    }
+
+    const { orderId, razorpayOrderId } = req.body;
+
+    const order = await Order.findOne({
+      _id: orderId,
+      userId: req.user._id
+    });
+
+    if (!order) {
+      return next(new AppError('Order not found or ownership mismatch.', 404, 'ORDER_NOT_FOUND'));
+    }
+
+    if (order.orderStatus === 'cancelled') {
+      return next(new AppError('Cannot complete payment for a cancelled order.', 400, 'ORDER_CANCELLED'));
+    }
+
+    const payment = await Payment.findOne({
+      orderId: order._id,
+      razorpayOrderId
+    });
+
+    if (!payment) {
+      return next(new AppError('Payment record not found for this order.', 404, 'PAYMENT_NOT_FOUND'));
+    }
+
+    // Generate mock payment ID entirely on the backend
+    const mockPaymentId = `pay_mock_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const signaturePayload = `${razorpayOrderId}|${mockPaymentId}`;
+    const mockSignature = crypto
+      .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+      .update(signaturePayload)
+      .digest('hex');
+
+    req.body = {
+      orderId,
+      razorpayOrderId,
+      razorpayPaymentId: mockPaymentId,
+      razorpaySignature: mockSignature
+    };
+
+    return verifyRazorpayPayment(req, res, next);
   } catch (error) {
     next(error);
   }

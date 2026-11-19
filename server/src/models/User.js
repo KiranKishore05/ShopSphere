@@ -54,6 +54,8 @@ const UserSchema = new mongoose.Schema({
   passwordResetToken: { type: String, select: false },
   passwordResetExpires: { type: Date, select: false },
   passwordChangedAt: { type: Date },
+  failedLoginAttempts: { type: Number, default: 0, select: false },
+  lockUntil: { type: Date, default: null, select: false },
   isActive: {
     type: Boolean,
     default: true,
@@ -67,6 +69,8 @@ const UserSchema = new mongoose.Schema({
       delete ret.passwordResetToken;
       delete ret.passwordResetExpires;
       delete ret.passwordChangedAt;
+      delete ret.failedLoginAttempts;
+      delete ret.lockUntil;
       return ret;
     }
   },
@@ -76,6 +80,8 @@ const UserSchema = new mongoose.Schema({
       delete ret.passwordResetToken;
       delete ret.passwordResetExpires;
       delete ret.passwordChangedAt;
+      delete ret.failedLoginAttempts;
+      delete ret.lockUntil;
       return ret;
     }
   }

@@ -17,6 +17,11 @@ describe('Phase 5.5: Admin Inventory Management Suite (/api/v1/admin/inventory)'
   const adminToken = generateToken({ id: adminId, email: 'admin@shopsphere.com', role: 'admin' });
   const customerToken = generateToken({ id: customerId, email: 'customer@shopsphere.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   const sampleProducts = [
     {
       _id: sampleProductId,
@@ -211,6 +216,7 @@ describe('Phase 5.5: Admin Inventory Management Suite (/api/v1/admin/inventory)'
       const res = await request(app)
         .patch('/api/v1/admin/inventory/adjust')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           productId: sampleProductId.toString(),
           variantSku: 'SPH-TRN-BLK-S',
@@ -238,6 +244,7 @@ describe('Phase 5.5: Admin Inventory Management Suite (/api/v1/admin/inventory)'
       const res = await request(app)
         .patch('/api/v1/admin/inventory/adjust')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           productId: sampleProductId.toString(),
           variantSku: 'SPH-TRN-BLK-S',
@@ -256,6 +263,7 @@ describe('Phase 5.5: Admin Inventory Management Suite (/api/v1/admin/inventory)'
       const res = await request(app)
         .patch('/api/v1/admin/inventory/adjust')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           productId: new mongoose.Types.ObjectId().toString(),
           variantSku: 'NON-EXISTENT-SKU',

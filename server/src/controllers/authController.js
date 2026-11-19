@@ -76,20 +76,61 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Retrieve user including passwordHash for comparison
-    const user = await User.findOne({ email }).select('+passwordHash');
+    // Retrieve user including passwordHash, failedLoginAttempts, and lockUntil for comparison
+    const user = await User.findOne({ email }).select('+passwordHash +failedLoginAttempts +lockUntil');
     if (!user) {
       return next(new AppError('Invalid email or password credentials.', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    // Check account lockout against brute-force attacks (SEC-06-02)
+    if (user.lockUntil && user.lockUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.lockUntil.getTime() - Date.now()) / (60 * 1000));
+      return next(
+        new AppError(
+          `Account is temporarily locked due to multiple failed login attempts. Please try again after ${remainingMinutes} minute(s).`,
+          423,
+          'ACCOUNT_LOCKED'
+        )
+      );
+    }
+
+    if (!user.isActive) {
+      return next(new AppError('Your account has been deactivated. Please contact support.', 403, 'ACCOUNT_DEACTIVATED'));
     }
 
     // Verify password hash
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      const currentAttempts = (user.failedLoginAttempts || 0) + 1;
+      const updates = { failedLoginAttempts: currentAttempts };
+
+      // Lock account for 15 minutes after 5 consecutive failed attempts
+      if (currentAttempts >= 5) {
+        updates.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        updates.failedLoginAttempts = 0;
+      }
+
+      await User.updateOne({ _id: user._id }, { $set: updates });
+
+      if (currentAttempts >= 5) {
+        return next(
+          new AppError(
+            'Account is temporarily locked for 15 minutes due to multiple failed login attempts.',
+            423,
+            'ACCOUNT_LOCKED'
+          )
+        );
+      }
+
       return next(new AppError('Invalid email or password credentials.', 401, 'INVALID_CREDENTIALS'));
     }
 
-    if (!user.isActive) {
-      return next(new AppError('Your account has been deactivated. Please contact support.', 403, 'ACCOUNT_DEACTIVATED'));
+    // Reset failed login attempts on successful authentication
+    if (user.failedLoginAttempts > 0 || user.lockUntil) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { failedLoginAttempts: 0, lockUntil: null } }
+      );
     }
 
     // Issue new session JWT token

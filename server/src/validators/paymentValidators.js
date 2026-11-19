@@ -19,3 +19,9 @@ export const recordPaymentFailureSchema = z.object({
   razorpayOrderId: z.string().optional(),
   errorDescription: z.string().optional()
 });
+
+export const mockCompletePaymentSchema = z.object({
+  orderId: z.string({ required_error: 'Order ID is required' })
+    .regex(/^[0-9a-fA-F]{24}$/, 'Invalid order ID format'),
+  razorpayOrderId: z.string({ required_error: 'Razorpay order ID is required' }).trim().min(1)
+});

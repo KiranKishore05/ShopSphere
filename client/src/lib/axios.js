@@ -19,6 +19,9 @@ api.interceptors.response.use(
       message: error.message || 'Unable to connect to the ShopSphere server.',
       details: []
     };
+    if (error.response?.status) {
+      errorPayload.status = error.response.status;
+    }
     return Promise.reject(errorPayload);
   }
 );

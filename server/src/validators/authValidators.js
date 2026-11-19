@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const strongPasswordSchema = z.string({ required_error: 'Password is required' })
+  .min(8, 'Password must be at least 8 characters long')
+  .max(100, 'Password cannot exceed 100 characters')
+  .regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-.~+=])/,
+    'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&#^_-.~+=)'
+  );
+
 export const registerSchema = z.object({
   name: z.string({ required_error: 'Name is required' })
     .trim()
@@ -9,9 +17,7 @@ export const registerSchema = z.object({
     .trim()
     .email('Invalid email address format')
     .toLowerCase(),
-  password: z.string({ required_error: 'Password is required' })
-    .min(8, 'Password must be at least 8 characters long')
-    .max(100, 'Password cannot exceed 100 characters'),
+  password: strongPasswordSchema,
   phone: z.string().trim().optional().default(''),
 });
 
@@ -33,9 +39,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().trim().min(1, 'Reset token is required').optional(),
-  password: z.string({ required_error: 'Password is required' })
-    .min(8, 'Password must be at least 8 characters long')
-    .max(100, 'Password cannot exceed 100 characters')
+  password: strongPasswordSchema
 });
 
 export const validateBody = (schema) => {

@@ -818,4 +818,157 @@ describe('Phase 9 Stage 2: Security & Configuration Hardening Suite', () => {
       warnSpy.mockRestore();
     });
   });
+
+  describe('8. Account-Level Brute-Force Lockout Protection (SEC-06-02)', () => {
+    it('should increment failedLoginAttempts and lock account after 5 failed attempts', async () => {
+      const mockUser = {
+        _id: new mongoose.Types.ObjectId(),
+        email: 'victim@example.com',
+        role: 'customer',
+        isActive: true,
+        failedLoginAttempts: 4,
+        lockUntil: null,
+        comparePassword: vi.fn().mockResolvedValue(false)
+      };
+
+      const findOneSpy = vi.spyOn(User, 'findOne').mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockUser)
+      });
+      const updateOneSpy = vi.spyOn(User, 'updateOne').mockResolvedValue({ modifiedCount: 1 });
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'victim@example.com', password: 'WrongPassword123!' });
+
+      expect(res.status).toBe(423);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect(res.body.error.message).toContain('Account is temporarily locked for 15 minutes');
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: mockUser._id },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            failedLoginAttempts: 0,
+            lockUntil: expect.any(Date)
+          })
+        })
+      );
+
+      findOneSpy.mockRestore();
+      updateOneSpy.mockRestore();
+    });
+
+    it('should reject login with HTTP 423 while account lockUntil timestamp is active', async () => {
+      const mockLockedUser = {
+        _id: new mongoose.Types.ObjectId(),
+        email: 'locked@example.com',
+        role: 'customer',
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockUntil: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes remaining
+        comparePassword: vi.fn()
+      };
+
+      const findOneSpy = vi.spyOn(User, 'findOne').mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockLockedUser)
+      });
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'locked@example.com', password: 'AnyPassword123!' });
+
+      expect(res.status).toBe(423);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect(res.body.error.message).toContain('Account is temporarily locked');
+      expect(mockLockedUser.comparePassword).not.toHaveBeenCalled();
+
+      findOneSpy.mockRestore();
+    });
+
+    it('should reset failed login attempts upon successful authentication', async () => {
+      const mockUser = {
+        _id: new mongoose.Types.ObjectId(),
+        name: 'Recovered User',
+        email: 'recovered@example.com',
+        role: 'customer',
+        isActive: true,
+        failedLoginAttempts: 3,
+        lockUntil: null,
+        comparePassword: vi.fn().mockResolvedValue(true)
+      };
+
+      const findOneSpy = vi.spyOn(User, 'findOne').mockReturnValue({
+        select: vi.fn().mockResolvedValue(mockUser)
+      });
+      const updateOneSpy = vi.spyOn(User, 'updateOne').mockResolvedValue({ modifiedCount: 1 });
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'recovered@example.com', password: 'CorrectPassword123!' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: mockUser._id },
+        { $set: { failedLoginAttempts: 0, lockUntil: null } }
+      );
+
+      findOneSpy.mockRestore();
+      updateOneSpy.mockRestore();
+    });
+  });
+
+  describe('9. Password Complexity Validation Rules (SEC-06-04)', () => {
+    it('should reject registration when password lacks uppercase characters', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          password: 'password123!'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      const issue = res.body.error.details.find(d => d.field === 'password');
+      expect(issue).toBeDefined();
+      expect(issue.issue).toContain('uppercase letter');
+    });
+
+    it('should reject registration when password lacks special characters', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          password: 'Password123'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      const issue = res.body.error.details.find(d => d.field === 'password');
+      expect(issue).toBeDefined();
+      expect(issue.issue).toContain('special character');
+    });
+
+    it('should reject registration when password lacks numeric digits', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          password: 'PasswordSecret!'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      const issue = res.body.error.details.find(d => d.field === 'password');
+      expect(issue).toBeDefined();
+      expect(issue.issue).toContain('number');
+    });
+  });
 });

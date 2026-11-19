@@ -40,4 +40,20 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: ADMIN_BOOTSTRAP_KEY
+        generateValue: true
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_TOKEN_SECRET
+        generateValue: true
+      - key: EMAIL_FROM_ADDRESS
+        value: orders@shopsphere.in
+      - key: EMAIL_FROM_NAME
+        value: ShopSphere
+      - key: EMAIL_SUPPORT_ADDRESS
+        value: support@shopsphere.in
+      - key: EMAIL_WORKER_ENABLED
+        value: "true"
 

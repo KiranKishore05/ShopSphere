@@ -19,6 +19,11 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
   const adminToken = generateToken({ id: adminId, email: 'admin@shopsphere.com', role: 'admin' });
   const customerToken = generateToken({ id: customerId, email: 'customer@shopsphere.com', role: 'customer' });
 
+  const csrfHeaders = {
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
   const mockAdminUser = {
     _id: adminId,
     name: 'Atelier Director',
@@ -184,6 +189,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/admin/coupons')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           code: 'welcome50',
           discountType: 'percentage',
@@ -205,6 +211,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/admin/coupons')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           code: 'OVER100',
           discountType: 'percentage',
@@ -222,6 +229,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/admin/coupons')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           code: 'BACKWARDTIME',
           discountType: 'fixed',
@@ -241,6 +249,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/admin/coupons')
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           code: 'FESTIVE25',
           discountType: 'percentage',
@@ -267,6 +276,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .patch(`/api/v1/admin/coupons/${sampleCouponId}`)
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           discountValue: 30,
           maxDiscountAmount: 1200
@@ -288,6 +298,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .patch(`/api/v1/admin/coupons/${sampleCouponId}`)
         .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders)
         .send({
           code: 'TAKENCODE'
         });
@@ -304,7 +315,8 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
 
       const res = await request(app)
         .delete(`/api/v1/admin/coupons/${sampleCouponId}`)
-        .set('Cookie', [`token=${adminToken}`]);
+        .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders);
 
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('CANNOT_DELETE_REDEEMED_COUPON');
@@ -318,7 +330,8 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
 
       const res = await request(app)
         .delete(`/api/v1/admin/coupons/${sampleCouponId}`)
-        .set('Cookie', [`token=${adminToken}`]);
+        .set('Cookie', [`token=${adminToken}`])
+        .set(csrfHeaders);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -342,6 +355,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/coupons/apply')
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ code: 'FESTIVE25', subtotal: 3000 });
 
       expect(res.status).toBe(200);
@@ -372,6 +386,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/coupons/apply')
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ code: 'FESTIVE25', subtotal: 3000 });
 
       expect(res.status).toBe(200);
@@ -390,6 +405,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/coupons/apply')
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ code: 'FESTIVE25', subtotal: 3000 });
 
       expect(res.status).toBe(200);
@@ -407,6 +423,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/coupons/apply')
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ code: 'FESTIVE25', subtotal: 3000 });
 
       expect(res.status).toBe(400);
@@ -424,6 +441,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .post('/api/v1/coupons/apply')
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ code: 'FESTIVE25', subtotal: 3000 });
 
       expect(res.status).toBe(400);
@@ -455,6 +473,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .patch(`/api/v1/orders/me/${pendingOrder.orderNumber}/cancel`)
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ reason: 'Abandoned checkout before payment' });
 
       expect(res.status).toBe(200);
@@ -491,6 +510,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const res = await request(app)
         .patch(`/api/v1/orders/me/${confirmedOrder.orderNumber}/cancel`)
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ reason: 'Customer changed mind' });
 
       expect(res.status).toBe(200);
@@ -509,6 +529,7 @@ describe('Phase 5.7: Admin Coupon Management Suite (/api/v1/admin/coupons)', () 
       const secondRes = await request(app)
         .patch(`/api/v1/orders/me/${confirmedOrder.orderNumber}/cancel`)
         .set('Cookie', [`token=${customerToken}`])
+        .set(csrfHeaders)
         .send({ reason: 'Duplicate cancel' });
 
       expect(secondRes.status).toBe(400);
