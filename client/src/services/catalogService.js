@@ -29,7 +29,9 @@ export const fetchProductBySlug = async (slug) => {
 };
 
 export const fetchCategories = async (params = {}) => {
-  const res = await api.get('/categories', { params });
+  // Guard against TanStack React Query passing QueryFunctionContext ({ queryKey, signal, client }) as params
+  const cleanParams = params && typeof params === 'object' && !('queryKey' in params) ? { ...params } : {};
+  const res = await api.get('/categories', { params: cleanParams });
   if (Array.isArray(res)) return res;
   if (Array.isArray(res?.data?.categories)) return res.data.categories;
   if (Array.isArray(res?.categories)) return res.categories;

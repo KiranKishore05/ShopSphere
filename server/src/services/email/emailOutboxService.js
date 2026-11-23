@@ -47,14 +47,13 @@ export const queueEmail = async ({ eventKey, eventType, recipient, templateData,
     nextAttemptAt: new Date()
   };
 
-  const createOpts = session ? { session } : {};
-
   try {
-    const [saved] = await EmailOutbox.create([outboxData], createOpts);
+    const doc = new EmailOutbox(outboxData);
+    const saved = await doc.save(session ? { session } : undefined);
     return {
       queued: true,
-      outboxId: saved._id.toString(),
-      eventKey: saved.eventKey
+      outboxId: (saved?._id || doc._id)?.toString(),
+      eventKey: saved?.eventKey || doc.eventKey
     };
   } catch (error) {
     // MongoDB duplicate key error (code 11000) indicates an already queued/processed event.

@@ -11,6 +11,7 @@ export const productQuerySchema = z.object({
   minPrice: z.coerce.number().min(0, 'Minimum price must be non-negative').optional(),
   maxPrice: z.coerce.number().min(0, 'Maximum price must be non-negative').optional(),
   inStock: z.enum(['true', 'false']).transform(val => val === 'true').optional(),
+  sale: z.enum(['true', 'false']).transform(val => val === 'true').optional(),
   sort: z.enum(['newest', 'price_asc', 'price_desc', 'popular', 'rating', 'relevance']).default('newest'),
 }).refine(data => {
   if (data.minPrice !== undefined && data.maxPrice !== undefined) {

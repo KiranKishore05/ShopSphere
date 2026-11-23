@@ -293,22 +293,37 @@ VITE_CLOUDINARY_CLOUD_NAME=shopsphere-fashion
 VITE_APP_NAME=ShopSphere
 ```
 
-### Database Seeding
+### Database Seeding & Demo Account Setup
 
-Populate the local database with initial fashion categories, multi-variant products, promotional coupons, and administrative credentials:
+ShopSphere includes a safe, idempotent bootstrap script for setting up demo accounts and sample catalog data in local or isolated test databases.
 
-```bash
-npm run seed
-```
+> [!IMPORTANT]
+> **Production Safety Guarantee**:
+> The seed and demo bootstrap scripts strictly reject connections targeting the production database cluster (`cluster0.1khdiho.mongodb.net`).
+> For development testing, provide your isolated test cluster URI via `TEST_MONGODB_URI`:
+> ```bash
+> # Linux / macOS
+> export TEST_MONGODB_URI="mongodb+srv://<user>:<password>@<test-cluster>.mongodb.net/shopsphere_test"
+> npm run seed:demo
+>
+> # Windows PowerShell
+> $env:TEST_MONGODB_URI="mongodb+srv://<user>:<password>@<test-cluster>.mongodb.net/shopsphere_test"
+> npm run seed:demo
+> ```
 
-*Note: The seed script outputs the initial administrator credentials upon completion.*
+#### Demo Accounts Provided
+
+| Role | Email Address | Password | Permissions & Scope |
+| :--- | :--- | :--- | :--- |
+| **Customer** | `customer@shopsphere.in` | `Customer@ShopSphere2026!` | Storefront browsing, cart, wishlist, address book, checkout (COD & Razorpay test mode), order tracking, cancellation |
+| **Administrator** | `admin@shopsphere.in` | `Admin@ShopSphere2026!` | Merchant dashboard (`/admin`), revenue analytics, product catalog CRUD, inventory movements, customer dossier, coupon manager, review moderation |
 
 ### Development Commands
 
 All workspace tasks can be executed from the root directory:
 
 ```bash
-# Start both server and client concurrently
+# Start both server (port 5000) and client (http://localhost:5173) concurrently
 npm run dev
 
 # Start server only (Node.js + Nodemon on port 5000)
@@ -317,8 +332,15 @@ npm run dev:server
 # Start client only (Vite on http://localhost:5173)
 npm run dev:client
 
+# Bootstrap demo accounts and baseline data
+npm run seed:demo
+
 # Build frontend for production
 npm run build
+
+# Run unit and integration test suites
+npm run test:client
+npm run test:server
 ```
 
 ---

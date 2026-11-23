@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
@@ -8,10 +8,10 @@ import Category from '../src/models/Category.js';
 import Order from '../src/models/Order.js';
 import Review from '../src/models/Review.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Phase 8: Reviews, Ratings, Search & Suggestions Backend Suite', () => {
+  let isDbConnected = false;
   let adminUser;
   let adminCookie;
 
@@ -25,17 +25,35 @@ describe('Phase 8: Reviews, Ratings, Search & Suggestions Backend Suite', () => 
   let testProduct;
   let deliveredOrder;
 
-  beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+  const cleanReviewTestData = async () => {
+    if (mongoose.connection.readyState !== 1) return;
+    const testUsers = await User.find({ email: /@test-review\.com$/ }).select('_id');
+    const testProds = await Product.find({ brand: 'Review Atelier' }).select('_id');
+    const testUserIds = testUsers.map(u => u._id);
+    const testProdIds = testProds.map(p => p._id);
+    if (testUserIds.length > 0 || testProdIds.length > 0) {
+      await Review.deleteMany({
+        $or: [
+          ...(testUserIds.length > 0 ? [{ userId: { $in: testUserIds } }] : []),
+          ...(testProdIds.length > 0 ? [{ productId: { $in: testProdIds } }] : [])
+        ]
+      });
     }
-
-    // Clean test collections
     await User.deleteMany({ email: /@test-review\.com$/ });
     await Product.deleteMany({ brand: 'Review Atelier' });
     await Category.deleteMany({ slug: /^review-cat/ });
     await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /ReviewClient/ });
-    await Review.deleteMany({});
+  };
+
+  beforeAll(async () => {
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
+    }
+
+    // Clean test collections
+    await cleanReviewTestData();
 
     // 1. Admin User
     adminUser = await User.create({
@@ -134,12 +152,20 @@ describe('Phase 8: Reviews, Ratings, Search & Suggestions Backend Suite', () => 
     });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-review\.com$/ });
-    await Product.deleteMany({ brand: 'Review Atelier' });
-    await Category.deleteMany({ slug: /^review-cat/ });
-    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /ReviewClient/ });
-    await Review.deleteMany({});
+    try {
+      if (isDbConnected) {
+        await cleanReviewTestData();
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   // 1. Eligibility Check Endpoint
@@ -277,6 +303,7 @@ describe('Phase 8: Reviews, Ratings, Search & Suggestions Backend Suite', () => 
     let createdReview;
 
     beforeAll(async () => {
+      if (!isDbConnected || !testProduct) return;
       createdReview = await Review.findOne({ productId: testProduct._id, userId: verifiedCustomer._id });
     });
 
@@ -320,6 +347,7 @@ describe('Phase 8: Reviews, Ratings, Search & Suggestions Backend Suite', () => 
     let reviewToModerate;
 
     beforeAll(async () => {
+      if (!isDbConnected || !testProduct) return;
       reviewToModerate = await Review.findOne({ productId: testProduct._id });
     });
 

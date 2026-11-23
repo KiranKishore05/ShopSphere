@@ -7,11 +7,19 @@ import { Eye, EyeOff, Lock, Mail, User, Phone, AlertCircle, ArrowRight, Shopping
 import { useAuth } from '../hooks/useAuth';
 import SEO from '../components/common/SEO';
 
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-.~+=])/;
+
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(80, 'Name cannot exceed 80 characters'),
   email: z.string().min(1, 'Email address is required').email('Please enter a valid email address'),
   phone: z.string().trim().optional().default(''),
-  password: z.string().min(8, 'Password must be at least 8 characters long'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters long')
+    .max(100, 'Password cannot exceed 100 characters')
+    .regex(
+      passwordRegex,
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&#^_-.~+=)'
+    ),
   confirmPassword: z.string().min(1, 'Please confirm your password'),
   agreeTerms: z.boolean().refine(val => val === true, {
     message: 'You must agree to the Terms of Service & Privacy Policy'
@@ -54,7 +62,10 @@ export default function RegisterPage() {
       });
       navigate('/account/profile', { replace: true });
     } catch (err) {
-      setServerError(err.message || 'Registration failed. Please check your information and try again.');
+      const detailedMessage = Array.isArray(err.details) && err.details.length > 0
+        ? err.details.map(d => d.issue || d.message).join('. ')
+        : (err.message || 'Registration failed. Please check your information and try again.');
+      setServerError(detailedMessage);
     }
   };
 
@@ -190,8 +201,10 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && (
+              {errors.password ? (
                 <p className="mt-1 text-xs text-rose-600 font-medium">{errors.password.message}</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-[#827E77]">8+ characters with uppercase, lowercase, number, and symbol.</p>
               )}
             </div>
 

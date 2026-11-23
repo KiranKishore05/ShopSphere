@@ -13,10 +13,10 @@ import Payment from '../src/models/Payment.js';
 import InventoryMovement from '../src/models/InventoryMovement.js';
 import config from '../src/config/env.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
+  let isDbConnected = false;
   let customerUser;
   let customerCookie;
 
@@ -29,16 +29,11 @@ describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
   let pendingOrder;
 
   beforeAll(async () => {
-    try {
-      if (mongoose.connection.readyState === 0) {
-        await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 2000 });
-      }
-    } catch {
-      // If local test DB is not running, tests will skip gracefully
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
       return;
     }
-
-    if (mongoose.connection.readyState !== 1) return;
 
     await User.deleteMany({ email: /@test-payment\.com$/ });
     await Product.deleteMany({ brand: 'Payment Test Atelier' });
@@ -153,24 +148,29 @@ describe('Payment & Razorpay Backend API (/api/v1/payments)', () => {
   });
 
   beforeEach((ctx) => {
-    if (mongoose.connection.readyState !== 1 || !pendingOrder) {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected || !pendingOrder) {
       ctx.skip();
     }
   });
 
   afterAll(async () => {
-    if (mongoose.connection.readyState !== 1) return;
-    await User.deleteMany({ email: /@test-payment\.com$/ });
-    await Product.deleteMany({ brand: 'Payment Test Atelier' });
-    await Category.deleteMany({ slug: 'payment-test-category' });
-    if (customerUser && otherCustomerUser) {
-      await Cart.deleteMany({ userId: { $in: [customerUser._id, otherCustomerUser._id] } });
-    }
-    await Coupon.deleteMany({ code: /^PAY/ });
-    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Payment/ });
-    if (pendingOrder) {
-      await Payment.deleteMany({ orderId: pendingOrder._id });
-      await InventoryMovement.deleteMany({ referenceId: pendingOrder._id });
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-payment\.com$/ });
+        await Product.deleteMany({ brand: 'Payment Test Atelier' });
+        await Category.deleteMany({ slug: 'payment-test-category' });
+        if (customerUser && otherCustomerUser) {
+          await Cart.deleteMany({ userId: { $in: [customerUser._id, otherCustomerUser._id] } });
+        }
+        await Coupon.deleteMany({ code: /^PAY/ });
+        await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Payment/ });
+        if (pendingOrder) {
+          await Payment.deleteMany({ orderId: pendingOrder._id });
+          await InventoryMovement.deleteMany({ referenceId: pendingOrder._id });
+        }
+      }
+    } finally {
+      await disconnectTestDB();
     }
   });
 

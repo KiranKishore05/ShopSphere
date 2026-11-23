@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
@@ -7,10 +7,10 @@ import Product from '../src/models/Product.js';
 import Category from '../src/models/Category.js';
 import Cart from '../src/models/Cart.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Cart Backend API (/api/v1/cart)', () => {
+  let isDbConnected = false;
   let customerUser;
   let customerToken;
   let customerCookie;
@@ -23,8 +23,10 @@ describe('Cart Backend API (/api/v1/cart)', () => {
   let outOfStockProduct;
 
   beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
     }
 
     // Clean up collections
@@ -115,11 +117,25 @@ describe('Cart Backend API (/api/v1/cart)', () => {
     });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-cart\.com$/ });
-    await Product.deleteMany({ brand: 'Cart Test Atelier' });
-    await Category.deleteMany({ slug: 'cart-test-category' });
-    await Cart.deleteMany({});
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-cart\.com$/ });
+        await Product.deleteMany({ brand: 'Cart Test Atelier' });
+        await Category.deleteMany({ slug: 'cart-test-category' });
+        if (customerUser || otherCustomerUser) {
+          await Cart.deleteMany({ userId: { $in: [customerUser?._id, otherCustomerUser?._id].filter(Boolean) } });
+        }
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   describe('GET /api/v1/cart', () => {

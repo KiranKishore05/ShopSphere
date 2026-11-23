@@ -18,7 +18,7 @@ export const registerSchema = z.object({
     .email('Invalid email address format')
     .toLowerCase(),
   password: strongPasswordSchema,
-  phone: z.string().trim().optional().default(''),
+  phone: z.string().trim().nullish().default(''),
 });
 
 export const loginSchema = z.object({

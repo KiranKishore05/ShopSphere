@@ -189,7 +189,7 @@ describe('Catalog & Product Discovery Frontend Suite', () => {
 
       expect(await screen.findByRole('heading', { name: /Double-Faced Cashmere Trench Coat/i })).toBeInTheDocument();
       expect(screen.getByText(/Pure Mongolian cashmere overcoat/i)).toBeInTheDocument();
-      expect(screen.getByText(/Colour Palette/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Colour Palette/i)).not.toBeInTheDocument();
       expect(screen.getByText(/Size Selection/i)).toBeInTheDocument();
     });
 

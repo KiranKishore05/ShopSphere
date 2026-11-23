@@ -1,25 +1,37 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
 import User from '../src/models/User.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Authentication & Authorization Suite (/api/v1/auth & /api/v1/admin)', () => {
+  let isDbConnected = false;
+
   beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
     }
     // Clean up test email domain
     await User.deleteMany({ email: /@test-atelier\.com$/ });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-atelier\.com$/ });
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.connection.close();
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-atelier\.com$/ });
+      }
+    } finally {
+      await disconnectTestDB();
     }
   });
 
@@ -60,6 +72,21 @@ describe('Authentication & Authorization Suite (/api/v1/auth & /api/v1/admin)', 
           name: 'Short Password',
           email: 'short.pass@test-atelier.com',
           password: 'short'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.details.some((d) => d.field === 'password')).toBe(true);
+    });
+
+    it('should reject registration if password lacks uppercase or special characters', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Weak Password',
+          email: 'weak.pass@test-atelier.com',
+          password: 'password123'
         });
 
       expect(res.status).toBe(400);

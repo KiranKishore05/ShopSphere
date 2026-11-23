@@ -7,8 +7,17 @@ import { z } from 'zod';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure server/.env is loaded whether commands run from server/ or monorepo root
+// Ensure server/.env and optional test env files are loaded
 const serverEnvPath = path.resolve(__dirname, '../../.env');
+const testEnvPath = path.resolve(__dirname, '../../.env.test');
+const testLocalEnvPath = path.resolve(__dirname, '../../.env.test.local');
+
+if (fs.existsSync(testLocalEnvPath)) {
+  dotenv.config({ path: testLocalEnvPath });
+}
+if (fs.existsSync(testEnvPath)) {
+  dotenv.config({ path: testEnvPath });
+}
 if (fs.existsSync(serverEnvPath)) {
   dotenv.config({ path: serverEnvPath });
 } else {
@@ -43,7 +52,7 @@ export const createEnvSchema = (nodeEnv = process.env.NODE_ENV || 'development')
           .refine(uri => !uri.includes('<username>') && !uri.includes('<password>'), {
             message: 'MONGODB_URI contains unreplaced placeholder credentials (<username>/<password>)'
           })
-      : z.string().default('mongodb://localhost:27017/shopsphere'),
+      : z.string().default(process.env.TEST_MONGODB_URI || process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere'),
 
     JWT_SECRET: isProd
       ? z.string({ required_error: 'JWT_SECRET is required in production' })

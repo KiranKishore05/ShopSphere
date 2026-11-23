@@ -1,19 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
 import Category from '../src/models/Category.js';
 import Product from '../src/models/Product.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Product Catalogue & Taxonomy API (/api/v1/products & /api/v1/categories)', () => {
+  let isDbConnected = false;
   let testCategory;
   let testProduct;
 
   beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
     }
 
     // Clean up test data
@@ -65,11 +67,20 @@ describe('Product Catalogue & Taxonomy API (/api/v1/products & /api/v1/categorie
     });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await Product.deleteMany({ brand: 'Test Atelier Co' });
-    await Category.deleteMany({ slug: 'test-catalogue-category' });
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.connection.close();
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await Product.deleteMany({ brand: 'Test Atelier Co' });
+        await Category.deleteMany({ slug: 'test-catalogue-category' });
+      }
+    } finally {
+      await disconnectTestDB();
     }
   });
 

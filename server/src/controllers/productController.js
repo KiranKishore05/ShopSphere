@@ -105,6 +105,7 @@ export const getProducts = async (req, res, next) => {
       minPrice,
       maxPrice,
       inStock,
+      sale,
       sort = 'newest'
     } = req.query;
 
@@ -199,6 +200,11 @@ export const getProducts = async (req, res, next) => {
     // 7. In-Stock Variant Availability Filter
     if (inStock === true) {
       filter['variants.stockQuantity'] = { $gt: 0 };
+    }
+
+    // 7b. Sale / Discounted Items Filter
+    if (sale === true) {
+      filter['variants.compareAtPrice'] = { $gt: 0 };
     }
 
     // 8. Deterministic Sorting

@@ -34,7 +34,7 @@ export const validateMongoUri = (uri) => {
  * Establish connection to MongoDB with sensible timeouts and retry behaviour.
  * Never silently swallows failures.
  */
-export const connectDB = async ({ retry = true, maxRetries = 3, retryDelayMs = 3000 } = {}) => {
+export const connectDB = async ({ uri = null, retry = true, maxRetries = 3, retryDelayMs = 3000 } = {}) => {
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
@@ -43,9 +43,10 @@ export const connectDB = async ({ retry = true, maxRetries = 3, retryDelayMs = 3
     return null;
   }
 
+  const connectionUri = uri || (process.env.NODE_ENV !== 'production' && process.env.TEST_MONGODB_URI) || config.MONGODB_URI;
   isConnecting = true;
-  const maskedUri = maskMongoUri(config.MONGODB_URI);
-  const uriCheck = validateMongoUri(config.MONGODB_URI);
+  const maskedUri = maskMongoUri(connectionUri);
+  const uriCheck = validateMongoUri(connectionUri);
 
   if (!uriCheck.valid && config.NODE_ENV !== 'test') {
     console.warn(`⚠️ MongoDB Configuration Warning: ${uriCheck.message}`);
@@ -72,7 +73,7 @@ export const connectDB = async ({ retry = true, maxRetries = 3, retryDelayMs = 3
       if (config.NODE_ENV !== 'test') {
         console.log(`📡 Connecting to MongoDB at ${maskedUri}... (attempt ${attempts})`);
       }
-      const conn = await mongoose.connect(config.MONGODB_URI, connectOptions);
+      const conn = await mongoose.connect(connectionUri, connectOptions);
       if (config.NODE_ENV !== 'test') {
         console.log(`✅ MongoDB connected successfully to database: ${conn.connection.name}`);
       }

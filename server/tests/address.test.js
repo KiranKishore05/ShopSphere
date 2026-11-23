@@ -1,21 +1,23 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
 import User from '../src/models/User.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Customer Address Book API (/api/v1/users/me/addresses)', () => {
+  let isDbConnected = false;
   let customerUser;
   let customerCookie;
   let otherCustomerUser;
   let otherCustomerCookie;
 
   beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
     }
 
     await User.deleteMany({ email: /@test-address\.com$/ });
@@ -39,8 +41,20 @@ describe('Customer Address Book API (/api/v1/users/me/addresses)', () => {
     otherCustomerCookie = `token=${otherToken}`;
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-address\.com$/ });
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-address\.com$/ });
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   let address1Id;

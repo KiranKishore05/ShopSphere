@@ -22,8 +22,14 @@ const seedData = async () => {
     process.exit(1);
   }
 
+  const targetUri = process.env.TEST_MONGODB_URI || config.MONGODB_URI || '';
+  if (targetUri.includes('cluster0.1khdiho.mongodb.net') && !targetUri.includes('test')) {
+    console.error('⛔ FATAL: Cannot run seed script against the production Cluster0 database!');
+    process.exit(1);
+  }
+
   console.log('🌱 Starting ShopSphere development seed sequence...');
-  await connectDB();
+  await connectDB({ uri: targetUri });
 
   try {
     // 1. Seed Categories (Upserted by slug)

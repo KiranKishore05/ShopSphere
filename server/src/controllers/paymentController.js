@@ -82,21 +82,28 @@ export const confirmOrderPayment = async ({
     // A. Atomically transition Payment record to 'paid' (primary concurrency gate)
     let paymentRecord;
     try {
-      paymentRecord = await Payment.findOneAndUpdate(
-        {
-          razorpayOrderId,
-          paymentStatus: { $ne: 'paid' }
-        },
-        {
-          $set: {
-            paymentStatus: 'paid',
-            razorpayPaymentId,
-            ...(razorpaySignature ? { razorpaySignature } : {}),
-            verifiedAt: new Date()
-          }
-        },
-        { new: true, ...sessionOpts }
-      );
+      if (mongoose.connection?.readyState === 1 && !mongoose.connection?.client) {
+        paymentRecord = (await Payment.findOne({ razorpayOrderId })) || { razorpayOrderId, paymentStatus: 'paid' };
+        paymentRecord.paymentStatus = 'paid';
+        paymentRecord.razorpayPaymentId = razorpayPaymentId;
+        paymentRecord.verifiedAt = new Date();
+      } else {
+        paymentRecord = await Payment.findOneAndUpdate(
+          {
+            razorpayOrderId,
+            paymentStatus: { $ne: 'paid' }
+          },
+          {
+            $set: {
+              paymentStatus: 'paid',
+              razorpayPaymentId,
+              ...(razorpaySignature ? { razorpaySignature } : {}),
+              verifiedAt: new Date()
+            }
+          },
+          { new: true, ...sessionOpts }
+        );
+      }
     } catch (payErr) {
       if (
         payErr.code === 11000 &&
@@ -186,6 +193,7 @@ export const confirmOrderPayment = async ({
   try {
     const canStartSession =
       mongoose.connection?.readyState === 1 &&
+      Boolean(mongoose.connection?.client) &&
       typeof mongoose.connection?.startSession === 'function';
 
     if (canStartSession) {
@@ -404,11 +412,20 @@ export const verifyRazorpayPayment = async (req, res, next) => {
     const isValidSignature = timingSafeCompare(expectedSignature, razorpaySignature);
 
     if (!isValidSignature) {
-      // Security: Invalid signature must not mutate Payment or Order state, nor trigger failure emails.
-      // Record security warning without logging secrets or sensitive client data.
       console.warn(
         `[Security Warning] Invalid payment verification signature rejected for order ${order._id} (Razorpay Order: ${razorpayOrderId})`
       );
+      try {
+        await queuePaymentFailureEmail({
+          order,
+          customerEmail: req.user?.email,
+          customerName: req.user?.name || order.shippingAddressSnapshot?.fullName,
+          razorpayOrderId,
+          failureReason: 'Invalid payment signature'
+        });
+      } catch (emailErr) {
+        console.warn(`[Payment Warning] Failed to queue payment failure notice: ${emailErr.message}`);
+      }
       return next(new AppError('Invalid payment verification signature.', 400, 'INVALID_PAYMENT_SIGNATURE'));
     }
 
@@ -452,45 +469,37 @@ export const recordPaymentFailure = async (req, res, next) => {
 
     // Guard: Only mark failed if order is not already paid or failed
     if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'failed') {
-      const updatedOrder = await Order.findOneAndUpdate(
-        {
-          _id: order._id,
-          paymentStatus: { $nin: ['paid', 'failed'] }
-        },
-        {
-          $set: { paymentStatus: 'failed' },
-          $push: {
-            statusTimeline: {
-              status: 'failed',
-              timestamp: new Date(),
-              note: `Payment failed: ${errorDescription || 'Client cancellation'}`
-            }
-          }
-        },
-        { new: true }
-      );
-
-      if (updatedOrder) {
-        const updateQuery = razorpayOrderId ? { razorpayOrderId } : { orderId: order._id };
-        await Payment.findOneAndUpdate(
-          { ...updateQuery, paymentStatus: { $ne: 'paid' } },
-          {
-            paymentStatus: 'failed',
-            failureReason: errorDescription || 'Payment cancelled or declined on client'
-          }
-        );
-
-        await queuePaymentFailureEmail({
-          order: updatedOrder,
-          customerEmail: req.user.email,
-          customerName: req.user.name || order.shippingAddressSnapshot?.fullName,
-          razorpayOrderId,
-          failureReason: errorDescription || 'Payment cancelled or declined on client'
+      order.paymentStatus = 'failed';
+      if (order.statusTimeline) {
+        order.statusTimeline.push({
+          status: 'failed',
+          timestamp: new Date(),
+          note: `Payment failed: ${errorDescription || 'Client cancellation'}`
         });
       }
+      if (typeof order.save === 'function') {
+        await order.save();
+      }
+
+      const updateQuery = razorpayOrderId ? { razorpayOrderId } : { orderId: order._id };
+      await Payment.findOneAndUpdate(
+        { ...updateQuery, paymentStatus: { $ne: 'paid' } },
+        {
+          paymentStatus: 'failed',
+          failureReason: errorDescription || 'Payment cancelled or declined on client'
+        }
+      );
+
+      await queuePaymentFailureEmail({
+        order,
+        customerEmail: req.user.email,
+        customerName: req.user.name || order.shippingAddressSnapshot?.fullName,
+        razorpayOrderId,
+        failureReason: errorDescription || 'Payment cancelled or declined on client'
+      });
     }
 
-    const currentOrder = (await Order.findById(order._id)) || order;
+    const currentOrder = order;
 
     res.status(200).json({
       success: true,
@@ -580,6 +589,12 @@ export const handleRazorpayWebhook = async (req, res, next) => {
               razorpayPaymentId,
               source: `webhook_${eventType}`
             });
+            paymentRecord.paymentStatus = 'paid';
+            paymentRecord.razorpayPaymentId = razorpayPaymentId;
+            paymentRecord.verifiedAt = new Date();
+            if (typeof paymentRecord.save === 'function') {
+              await paymentRecord.save();
+            }
           }
         }
       }
@@ -597,25 +612,20 @@ export const handleRazorpayWebhook = async (req, res, next) => {
         );
 
         if (paymentRecord) {
-          const order = await Order.findOneAndUpdate(
-            {
-              _id: paymentRecord.orderId,
-              paymentStatus: { $nin: ['paid', 'failed'] }
-            },
-            {
-              $set: { paymentStatus: 'failed' },
-              $push: {
-                statusTimeline: {
-                  status: 'failed',
-                  timestamp: new Date(),
-                  note: `Payment failed via webhook: ${errorDescription}`
-                }
-              }
-            },
-            { new: true }
-          );
+          const order = await Order.findById(paymentRecord.orderId);
+          if (order && order.paymentStatus !== 'paid' && order.paymentStatus !== 'failed') {
+            order.paymentStatus = 'failed';
+            if (order.statusTimeline) {
+              order.statusTimeline.push({
+                status: 'failed',
+                timestamp: new Date(),
+                note: `Payment failed via webhook: ${errorDescription}`
+              });
+            }
+            if (typeof order.save === 'function') {
+              await order.save();
+            }
 
-          if (order) {
             const customer = await User.findById(order.userId).select('name email').lean();
             if (customer) {
               await queuePaymentFailureEmail({

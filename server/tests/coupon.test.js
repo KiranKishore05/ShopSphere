@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
@@ -9,10 +9,10 @@ import Cart from '../src/models/Cart.js';
 import Coupon from '../src/models/Coupon.js';
 import Order from '../src/models/Order.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Coupon Backend API (/api/v1/coupons)', () => {
+  let isDbConnected = false;
   let customerUser;
   let customerCookie;
   let otherCustomerUser;
@@ -29,8 +29,10 @@ describe('Coupon Backend API (/api/v1/coupons)', () => {
   let perUserCoupon;
 
   beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
     }
 
     await User.deleteMany({ email: /@test-coupon\.com$/ });
@@ -167,13 +169,27 @@ describe('Coupon Backend API (/api/v1/coupons)', () => {
     });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-coupon\.com$/ });
-    await Product.deleteMany({ brand: 'Coupon Test Atelier' });
-    await Category.deleteMany({ slug: 'coupon-test-category' });
-    await Cart.deleteMany({});
-    await Coupon.deleteMany({ code: /^TEST/ });
-    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Coupon/ });
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-coupon\.com$/ });
+        await Product.deleteMany({ brand: 'Coupon Test Atelier' });
+        await Category.deleteMany({ slug: 'coupon-test-category' });
+        if (customerUser || otherCustomerUser) {
+          await Cart.deleteMany({ userId: { $in: [customerUser?._id, otherCustomerUser?._id].filter(Boolean) } });
+        }
+        await Coupon.deleteMany({ code: /^TEST/ });
+        await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Coupon/ });
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   describe('POST /api/v1/coupons/apply', () => {

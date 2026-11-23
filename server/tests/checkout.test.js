@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
@@ -10,16 +10,17 @@ import Coupon from '../src/models/Coupon.js';
 import Order from '../src/models/Order.js';
 import InventoryMovement from '../src/models/InventoryMovement.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
+  let isDbConnected = false;
   let customerUser;
   let customerCookie;
   let savedAddressId;
 
   let otherCustomerUser;
   let otherCustomerCookie;
+  let otherAddressId;
 
   let testCategory;
   let inStockProduct;
@@ -27,18 +28,48 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
   let expensiveProduct;
   let testCoupon;
 
-  beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 5000 });
-    }
+  const authHeaders = (cookie) => ({
+    Cookie: cookie,
+    Origin: 'http://localhost:5173',
+    'X-Requested-With': 'XMLHttpRequest'
+  });
 
-    // Cleanup
+  const cleanCheckoutTestData = async () => {
+    if (mongoose.connection.readyState !== 1) return;
     await User.deleteMany({ email: /@test-checkout\.com$/ });
     await Product.deleteMany({ brand: 'Checkout Test Atelier' });
     await Category.deleteMany({ slug: 'checkout-test-category' });
+    if (customerUser || otherCustomerUser) {
+      await Cart.deleteMany({ userId: { $in: [customerUser?._id, otherCustomerUser?._id].filter(Boolean) } });
+    }
     await Coupon.deleteMany({ code: /^CKOUT/ });
+
+    // Scoped order and inventory movement cleanup — never delete non-test data
+    const testOrders = await Order.find({ 'shippingAddressSnapshot.fullName': /Checkout/ }).select('_id');
+    const testOrderIds = testOrders.map(o => o._id);
+    const testProducts = await Product.find({ brand: 'Checkout Test Atelier' }).select('_id');
+    const testProductIds = testProducts.map(p => p._id);
+
+    if (testOrderIds.length > 0 || testProductIds.length > 0) {
+      await InventoryMovement.deleteMany({
+        $or: [
+          ...(testOrderIds.length > 0 ? [{ orderId: { $in: testOrderIds } }] : []),
+          ...(testProductIds.length > 0 ? [{ productId: { $in: testProductIds } }] : [])
+        ]
+      });
+    }
     await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Checkout/ });
-    await InventoryMovement.deleteMany({});
+  };
+
+  beforeAll(async () => {
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) {
+      return;
+    }
+
+    // Isolated test cleanup
+    await cleanCheckoutTestData();
 
     testCategory = await Category.create({
       name: 'Checkout Category',
@@ -76,8 +107,21 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       name: 'Other Checkout Customer',
       email: 'other@test-checkout.com',
       passwordHash: await User.hashPassword('Password123!'),
-      role: 'customer'
+      role: 'customer',
+      savedAddresses: [
+        {
+          fullName: 'Other Checkout Customer',
+          phone: '+91 9876543211',
+          streetAddress: '99 Marine Drive',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          postalCode: '400020',
+          country: 'India',
+          isDefault: true
+        }
+      ]
     });
+    otherAddressId = otherCustomerUser.savedAddresses[0]._id.toString();
     const otherToken = generateToken({ id: otherCustomerUser._id, email: otherCustomerUser.email, role: otherCustomerUser.role });
     otherCustomerCookie = `token=${otherToken}`;
 
@@ -152,14 +196,20 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
     });
   });
 
+  beforeEach((ctx) => {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected) {
+      ctx.skip();
+    }
+  });
+
   afterAll(async () => {
-    await User.deleteMany({ email: /@test-checkout\.com$/ });
-    await Product.deleteMany({ brand: 'Checkout Test Atelier' });
-    await Category.deleteMany({ slug: 'checkout-test-category' });
-    await Cart.deleteMany({ userId: { $in: [customerUser._id, otherCustomerUser._id] } });
-    await Coupon.deleteMany({ code: /^CKOUT/ });
-    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Checkout/ });
-    await InventoryMovement.deleteMany({});
+    try {
+      if (isDbConnected) {
+        await cleanCheckoutTestData();
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   describe('POST /api/v1/orders/checkout', () => {
@@ -168,7 +218,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
 
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod'
@@ -197,7 +247,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
 
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod'
@@ -227,7 +277,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Attempt to tamper price/total in request body
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'razorpay',
@@ -256,7 +306,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // First call
       const res1 = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'razorpay',
@@ -269,7 +319,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Duplicate call with same key
       const res2 = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'razorpay',
@@ -291,7 +341,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
           $set: {
             items: [{
               productId: inStockProduct._id,
-              variantSku: 'MSH-LIN-OLV-M',
+              variantSku: 'SGB-IVY-S',
               quantity: 1,
               addedAt: new Date()
             }]
@@ -303,7 +353,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Initial COD checkout (clears cart upon success)
       const res1 = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod',
@@ -320,7 +370,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Sequential duplicate call with same key after cart was cleared
       const res2 = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod',
@@ -338,7 +388,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Call with same key but different payment method
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'razorpay', // Mismatched payment method!
@@ -355,9 +405,9 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
       // Other customer calls with first customer's key
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', otherCustomerCookie)
+        .set(authHeaders(otherCustomerCookie))
         .send({
-          addressId: savedAddressId,
+          addressId: otherAddressId,
           paymentMethod: 'cod',
           idempotencyKey
         });
@@ -385,7 +435,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
 
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod'
@@ -414,7 +464,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
 
       const res = await request(app)
         .post('/api/v1/orders/checkout')
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({
           addressId: savedAddressId,
           paymentMethod: 'cod'
@@ -449,10 +499,13 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
     let placedOrderNumber;
 
     beforeAll(async () => {
+      if (!isDbConnected || !customerUser) return;
+
       // Create a confirmed order for customer
       const order = await Order.create({
         orderNumber: 'SPH-CUSTOMER-001',
         userId: customerUser._id,
+        inventoryDeducted: true,
         items: [{
           productId: inStockProduct._id,
           variantSku: 'SGB-IVY-S',
@@ -489,7 +542,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
     it('should list customer order history with pagination', async () => {
       const res = await request(app)
         .get('/api/v1/orders/me')
-        .set('Cookie', customerCookie);
+        .set(authHeaders(customerCookie));
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -501,7 +554,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
     it('should fetch single order details by orderNumber', async () => {
       const res = await request(app)
         .get(`/api/v1/orders/me/${placedOrderNumber}`)
-        .set('Cookie', customerCookie);
+        .set(authHeaders(customerCookie));
 
       expect(res.status).toBe(200);
       expect(res.body.data.order.orderNumber).toBe(placedOrderNumber);
@@ -511,7 +564,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
     it('should prevent other customers from accessing another customer order', async () => {
       const res = await request(app)
         .get(`/api/v1/orders/me/${placedOrderNumber}`)
-        .set('Cookie', otherCustomerCookie);
+        .set(authHeaders(otherCustomerCookie));
 
       expect(res.status).toBe(404); // Scoped to req.user._id, not found for other user
     });
@@ -523,7 +576,7 @@ describe('Checkout & Orders Backend API (/api/v1/orders)', () => {
 
       const res = await request(app)
         .patch(`/api/v1/orders/me/${placedOrderNumber}/cancel`)
-        .set('Cookie', customerCookie)
+        .set(authHeaders(customerCookie))
         .send({ reason: 'Changed my styling preference' });
 
       expect(res.status).toBe(200);

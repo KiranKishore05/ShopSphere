@@ -45,10 +45,10 @@ export default function HomePage() {
       category: 'MEN',
       eyebrow: 'MODERN FASHION COLLECTION',
       heading: 'Heritage Meets Modern Style',
-      subtitle: 'Explore kurtas, sherwanis and refined traditional menswear.',
+      subtitle: 'Explore coats, hoodies and refined modern menswear.',
       ctaText: 'Shop Now',
       ctaLink: '/shop?gender=men',
-      image: 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=1200&q=85',
+      image: '/images/men-editorial.jpg',
       alt: "ShopSphere Men's Fashion Campaign"
     },
     {
@@ -334,7 +334,7 @@ export default function HomePage() {
             </div>
             <div className="h-full w-36 sm:w-44 shrink-0 flex items-end justify-end overflow-hidden">
               <img
-                src="https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80"
+                src="/images/men-editorial.jpg"
                 alt="ShopSphere Men's Collection"
                 className="h-full w-full object-cover object-top rounded-lg group-hover:scale-105 transition-transform duration-500"
               />

@@ -9,10 +9,10 @@ import Order from '../src/models/Order.js';
 import Coupon from '../src/models/Coupon.js';
 import InventoryMovement from '../src/models/InventoryMovement.js';
 import { generateToken } from '../src/utils/token.js';
-
-const TEST_DB_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/shopsphere_test';
+import { connectTestDB, disconnectTestDB } from './helpers/testDb.js';
 
 describe('Admin Backend API Suite (/api/v1/admin)', () => {
+  let isDbConnected = false;
   let adminUser;
   let adminCookie;
 
@@ -24,15 +24,9 @@ describe('Admin Backend API Suite (/api/v1/admin)', () => {
   let seededOrder;
 
   beforeAll(async () => {
-    try {
-      if (mongoose.connection.readyState === 0) {
-        await mongoose.connect(TEST_DB_URI, { serverSelectionTimeoutMS: 2000 });
-      }
-    } catch {
-      return;
-    }
-
-    if (mongoose.connection.readyState !== 1) return;
+    const connResult = await connectTestDB();
+    isDbConnected = connResult.connected;
+    if (!isDbConnected) return;
 
     // Clean up test data
     await User.deleteMany({ email: /@test-admin\.com$/ });
@@ -137,16 +131,21 @@ describe('Admin Backend API Suite (/api/v1/admin)', () => {
   });
 
   afterAll(async () => {
-    if (mongoose.connection.readyState !== 1) return;
-    await User.deleteMany({ email: /@test-admin\.com$/ });
-    await Product.deleteMany({ brand: 'Admin Atelier' });
-    await Category.deleteMany({ slug: /^admin-cat/ });
-    await Coupon.deleteMany({ code: /^ADM/ });
-    await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Admin/ });
+    try {
+      if (isDbConnected && mongoose.connection.readyState === 1) {
+        await User.deleteMany({ email: /@test-admin\.com$/ });
+        await Product.deleteMany({ brand: 'Admin Atelier' });
+        await Category.deleteMany({ slug: /^admin-cat/ });
+        await Coupon.deleteMany({ code: /^ADM/ });
+        await Order.deleteMany({ 'shippingAddressSnapshot.fullName': /Admin/ });
+      }
+    } finally {
+      await disconnectTestDB();
+    }
   });
 
   beforeEach((ctx) => {
-    if (mongoose.connection.readyState !== 1 || !adminUser) {
+    if (mongoose.connection.readyState !== 1 || !isDbConnected || !adminUser) {
       ctx.skip();
     }
   });

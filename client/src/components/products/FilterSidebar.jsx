@@ -110,12 +110,11 @@ export default function FilterSidebar({
       {/* Gender Classification */}
       <div className="space-y-3">
         <h4 className="font-semibold text-[11px] uppercase tracking-wider text-sphere-ink">GENDER</h4>
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {[
             { label: 'Men', value: 'men' },
             { label: 'Women', value: 'women' },
-            { label: 'Kids', value: 'kids' },
-            { label: 'Unisex', value: 'unisex' }
+            { label: 'Kids', value: 'kids' }
           ].map((item) => {
             const isSelected = filters.gender?.toLowerCase() === item.value;
             return (

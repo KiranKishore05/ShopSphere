@@ -43,7 +43,7 @@ export default function CategoryPage() {
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
-    queryFn: fetchCategories
+    queryFn: () => fetchCategories()
   });
 
   const products = response?.products || response?.data?.products || [];

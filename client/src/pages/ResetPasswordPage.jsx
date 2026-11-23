@@ -6,8 +6,16 @@ import { Link } from 'react-router-dom';
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { resetPassword } from '../services/authService';
 
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-.~+=])/;
+
 const resetPasswordSchema = z.object({
-  password: z.string().min(8, 'Password must be at least 8 characters long').max(100, 'Password cannot exceed 100 characters'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters long')
+    .max(100, 'Password cannot exceed 100 characters')
+    .regex(
+      passwordRegex,
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&#^_-.~+=)'
+    ),
   confirmPassword: z.string().min(1, 'Please confirm your new password')
 }).refine(data => data.password === data.confirmPassword, {
   message: 'Passwords do not match',

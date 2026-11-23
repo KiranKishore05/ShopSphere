@@ -46,25 +46,25 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-md border-b border-[#EAE5DA] transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-18 gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-18 gap-2 sm:gap-4">
           
           {/* Left: Mobile Toggle & Brand Logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-[#161513] hover:text-[#827E77] transition-colors"
+              className="lg:hidden p-1.5 sm:p-2 text-[#161513] hover:text-[#827E77] transition-colors"
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-lg bg-[#161513] text-[#FDFBF7] flex items-center justify-center shrink-0 shadow-xs group-hover:bg-[#34302C] transition-colors">
-                <ShoppingBag className="w-5 h-5" strokeWidth={2.2} />
+            <Link to="/" className="flex items-center gap-1.5 sm:gap-2.5 group">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#161513] text-[#FDFBF7] flex items-center justify-center shrink-0 shadow-xs group-hover:bg-[#34302C] transition-colors">
+                <ShoppingBag className="w-4.5 h-4.5 sm:w-5 sm:h-5" strokeWidth={2.2} />
               </div>
               <div className="flex flex-col">
-                <span className="font-sans text-xl sm:text-2xl font-bold tracking-tight text-[#161513] leading-none">
+                <span className="font-sans text-lg sm:text-2xl font-bold tracking-tight text-[#161513] leading-none">
                   ShopSphere
                 </span>
                 <span className="text-[9px] tracking-wider text-[#827E77] font-medium hidden sm:block mt-0.5">
@@ -92,7 +92,7 @@ export default function Navbar() {
           </nav>
 
           {/* Right: Embedded Search, User, Wishlist, Cart */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4 shrink-0">
             
             {/* Inline Desktop Search Pill */}
             <div className="relative hidden md:block">
@@ -123,7 +123,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="p-2 text-[#161513] hover:text-[#827E77] transition-colors"
+                className="p-1.5 sm:p-2 text-[#161513] hover:text-[#827E77] transition-colors"
                 aria-label="Search Products"
               >
                 <Search className="w-5 h-5" />
@@ -139,7 +139,7 @@ export default function Navbar() {
             {/* User Account Link */}
             <Link
               to={isAuthenticated ? '/account/profile' : '/login'}
-              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
+              className="p-1.5 sm:p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
               aria-label={isAuthenticated ? 'Account Profile' : 'Account Login'}
               title={isAuthenticated ? `Signed in as ${user?.name}` : 'Sign In'}
             >
@@ -155,7 +155,7 @@ export default function Navbar() {
             {/* Wishlist Link with Heart Badge */}
             <Link
               to="/wishlist"
-              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
+              className="p-1.5 sm:p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
               aria-label="Wishlist"
               title="Wishlist"
             >
@@ -170,7 +170,7 @@ export default function Navbar() {
             {/* Shopping Cart Button with Red Count Badge */}
             <button
               onClick={openCartDrawer}
-              className="p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
+              className="p-1.5 sm:p-2 text-[#161513] hover:text-[#827E77] transition-colors relative"
               aria-label="Shopping Cart"
               title="Shopping Cart"
             >

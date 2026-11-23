@@ -20,11 +20,12 @@
 }
 
 @layer base {
-  body {
+  html, body {
     background-color: var(--color-bg-ivory);
     color: var(--color-text-ink);
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
+    max-width: 100%;
   }
 
   h1, h2, h3, .font-editorial {

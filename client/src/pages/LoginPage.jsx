@@ -38,7 +38,10 @@ export default function LoginPage() {
       const redirectTarget = location.state?.from?.pathname || (loggedInUser?.role === 'admin' ? '/admin' : '/account/profile');
       navigate(redirectTarget, { replace: true });
     } catch (err) {
-      setServerError(err.message || 'Invalid email or password credentials.');
+      const detailedMessage = Array.isArray(err.details) && err.details.length > 0
+        ? err.details.map(d => d.issue || d.message).join('. ')
+        : (err.message || 'Invalid email or password credentials.');
+      setServerError(detailedMessage);
     }
   };
 

@@ -23,6 +23,7 @@ export default function ShopPage() {
   const minPrice = searchParams.get('minPrice') || '';
   const maxPrice = searchParams.get('maxPrice') || '';
   const inStock = searchParams.get('inStock') || '';
+  const sale = searchParams.get('sale') || '';
   const sort = searchParams.get('sort') || 'newest';
 
   const filterParams = {
@@ -36,6 +37,7 @@ export default function ShopPage() {
     minPrice,
     maxPrice,
     inStock,
+    sale,
     sort
   };
 
@@ -49,7 +51,7 @@ export default function ShopPage() {
   // TanStack Query for Categories
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
-    queryFn: fetchCategories
+    queryFn: () => fetchCategories()
   });
 
   const products = productResponse?.products || productResponse?.data?.products || [];
@@ -96,7 +98,8 @@ export default function ShopPage() {
       key: 'price',
       label: `Price: ₹${minPrice || '0'} - ₹${maxPrice || '∞'}`
     },
-    inStock && { key: 'inStock', label: 'In-Stock Only' }
+    inStock && { key: 'inStock', label: 'In-Stock Only' },
+    sale && { key: 'sale', label: 'On Sale' }
   ].filter(Boolean);
 
   const removeChip = (key) => {
@@ -106,19 +109,25 @@ export default function ShopPage() {
     } else if (key === 'search') {
       setSearchInput('');
       updateFilter('search', '');
+    } else if (key === 'sale') {
+      updateFilter('sale', '');
     } else {
       updateFilter(key, '');
     }
   };
 
+  const pageTitle = gender
+    ? `${gender.charAt(0).toUpperCase() + gender.slice(1)}'s Collection`
+    : (sale ? 'Sale Collection' : 'All Collections');
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
       <SEO
-        title={search ? `Search: "${search}"` : 'All Collections & Pieces'}
-        description="Browse ShopSphere luxury collections, outerwear, tailoring, and contemporary silhouettes."
+        title={search ? `Search: "${search}"` : pageTitle}
+        description={`Browse ShopSphere ${pageTitle.toLowerCase()}, outerwear, tailoring, and contemporary silhouettes.`}
       />
 
-      <Breadcrumbs items={[{ label: 'All Collections' }]} />
+      <Breadcrumbs items={[{ label: pageTitle }]} />
 
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between pt-2 pb-8 border-b border-sphere-border gap-6">
@@ -127,7 +136,7 @@ export default function ShopPage() {
             ATELIER ARCHIVE
           </span>
           <h1 className="font-editorial text-3xl sm:text-4xl text-sphere-ink">
-            All Collections
+            {pageTitle}
           </h1>
           <p className="text-xs text-sphere-muted mt-1.5 max-w-lg">
             Meticulously engineered seasonal garments cut from regenerative natural fibers and tactile luxury textiles.

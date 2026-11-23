@@ -85,10 +85,13 @@ export default function ProductDetailPage() {
 
   // Default color selection when product loads
   useEffect(() => {
-    if (product?.availableColors?.length > 0 && !selectedColor) {
-      setSelectedColor(product.availableColors[0].name);
+    if (!selectedColor) {
+      const defaultColor = product?.availableColors?.[0]?.name || product?.variants?.[0]?.color?.name || '';
+      if (defaultColor) {
+        setSelectedColor(defaultColor);
+      }
     }
-  }, [product]);
+  }, [product, selectedColor]);
 
   if (isLoading) {
     return (
@@ -125,29 +128,31 @@ export default function ProductDetailPage() {
     );
   }
 
-  // Find active variant matching selected size and color
-  const activeVariant = product.variants?.find(
-    (v) => v.size === selectedSize && v.color?.name === selectedColor
-  );
+  // Find active variant matching selected size
+  const activeVariant = selectedSize
+    ? (product.variants?.find((v) => v.size === selectedSize && (!selectedColor || v.color?.name === selectedColor))
+       || product.variants?.find((v) => v.size === selectedSize))
+    : (product.variants?.[0] || null);
 
   const currentPrice = activeVariant ? activeVariant.price : product.priceRange?.min || 0;
   const comparePrice = activeVariant?.compareAtPrice || product.compareAtPrice;
-  const isAvailable = activeVariant ? activeVariant.stockQuantity > 0 : product.inStock;
+  const isAvailable = selectedSize
+    ? (activeVariant ? activeVariant.stockQuantity > 0 : false)
+    : product.inStock;
   const discountPercent = comparePrice && comparePrice > currentPrice
     ? Math.round(((comparePrice - currentPrice) / comparePrice) * 100)
     : null;
 
   const handleAddToCart = async () => {
-    if (!selectedColor) {
-      setValidationError('Please choose a colour option to continue.');
-      return;
-    }
     if (!selectedSize) {
       setValidationError('Please select a garment size before adding to your bag.');
       return;
     }
-    if (!activeVariant || activeVariant.stockQuantity <= 0) {
-      setValidationError('This specific size and colour variation is currently sold out.');
+    const variantToAdd = product.variants?.find((v) => v.size === selectedSize && (!selectedColor || v.color?.name === selectedColor))
+      || product.variants?.find((v) => v.size === selectedSize);
+
+    if (!variantToAdd || variantToAdd.stockQuantity <= 0) {
+      setValidationError('This specific size variation is currently sold out.');
       return;
     }
     if (!isAuthenticated) {
@@ -159,7 +164,7 @@ export default function ProductDetailPage() {
       setValidationError('');
       await addToCart({
         productId: product._id,
-        variantSku: activeVariant.sku,
+        variantSku: variantToAdd.sku,
         quantity
       });
       setAddedSuccess(true);
@@ -170,16 +175,15 @@ export default function ProductDetailPage() {
   };
 
   const handleBuyNow = async () => {
-    if (!selectedColor) {
-      setValidationError('Please choose a colour option to continue.');
-      return;
-    }
     if (!selectedSize) {
       setValidationError('Please select a garment size before adding to your bag.');
       return;
     }
-    if (!activeVariant || activeVariant.stockQuantity <= 0) {
-      setValidationError('This specific size and colour variation is currently sold out.');
+    const variantToAdd = product.variants?.find((v) => v.size === selectedSize && (!selectedColor || v.color?.name === selectedColor))
+      || product.variants?.find((v) => v.size === selectedSize);
+
+    if (!variantToAdd || variantToAdd.stockQuantity <= 0) {
+      setValidationError('This specific size variation is currently sold out.');
       return;
     }
     if (!isAuthenticated) {
@@ -191,7 +195,7 @@ export default function ProductDetailPage() {
       setValidationError('');
       await addToCart({
         productId: product._id,
-        variantSku: activeVariant.sku,
+        variantSku: variantToAdd.sku,
         quantity
       });
       navigate('/checkout');
@@ -278,7 +282,7 @@ export default function ProductDetailPage() {
                   <span>{product.category.name}</span>
                 </>
               )}
-              {product.gender && (
+              {product.gender && product.gender.toLowerCase() !== 'unisex' && (
                 <>
                   <span>•</span>
                   <span className="capitalize">{product.gender}</span>
@@ -329,7 +333,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* 5 & 6. Variant Selection: Colour & Size */}
+          {/* 5. Variant Selection: Size */}
           <div className="pt-4 border-t border-[#EAE5DA]">
             <VariantSelector
               variants={product.variants || []}
@@ -337,10 +341,11 @@ export default function ProductDetailPage() {
               selectedColor={selectedColor}
               onSelectSize={(size) => {
                 setSelectedSize(size);
-                setValidationError('');
-              }}
-              onSelectColor={(col) => {
-                setSelectedColor(col);
+                const matched = product.variants?.find((v) => v.size === size && (!selectedColor || v.color?.name === selectedColor))
+                  || product.variants?.find((v) => v.size === size);
+                if (matched?.color?.name) {
+                  setSelectedColor(matched.color.name);
+                }
                 setValidationError('');
               }}
               validationError={validationError}
@@ -427,7 +432,7 @@ export default function ProductDetailPage() {
             {addedSuccess && (
               <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-lg animate-fadeIn">
                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Selected variant ({selectedColor} • {selectedSize}) added to your bag.</span>
+                <span>Selected piece ({selectedSize}) added to your bag.</span>
               </div>
             )}
           </div>
